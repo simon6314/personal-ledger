@@ -266,6 +266,35 @@ function typeLabelOf(r) {
   return r.transfer ? '轉帳' : (r.income ? '收入' : '支出');
 }
 
+// ── 帳戶明細：列出與此帳戶有關的所有紀錄（收支與轉入、轉出）────────
+function openAccountDetail(name) {
+  const today = todayIso();
+  const rel = pool().filter(r => r.account === name || r.toAccount === name)
+    .sort((a, b) => (a.iso === b.iso ? b.row - a.row : (a.iso < b.iso ? 1 : -1)));
+  const inc = sum(rel.filter(r => r.account === name), 'income');
+  const exp = sum(rel.filter(r => r.account === name), 'expense');
+  const tout = sum(rel.filter(r => r.account === name), 'transfer');
+  const tin = sum(rel.filter(r => r.toAccount === name), 'transfer');
+  const balToday = balancesAsOf(today)[name] || 0;
+  const balAll = balancesAsOf('9999-12-31')[name] || 0;
+  $('accDetailTitle').textContent = name;
+  $('accDetailSum').innerHTML = `
+    <div class="acc-sum-grid">
+      <div><span>目前餘額</span><b class="${balToday < 0 ? 'out' : ''}">${money(balToday)}</b></div>
+      <div><span>含未來日期</span><b class="${balAll < 0 ? 'out' : ''}">${money(balAll)}</b></div>
+      <div><span>收入</span><b class="in">${money(inc)}</b></div>
+      <div><span>支出</span><b class="out">${money(exp)}</b></div>
+      <div><span>轉入</span><b>${money(tin)}</b></div>
+      <div><span>轉出</span><b>${money(tout)}</b></div>
+    </div>
+    <p class="hint">共 ${rel.length} 筆有關的紀錄${rel.length > 500 ? '（顯示前 500 筆）' : ''}</p>`;
+  const shown = rel.slice(0, 500);
+  $('accDetailList').innerHTML = shown.length
+    ? shown.map(rowHtml).join('')
+    : '<div class="empty">這個帳戶還沒有紀錄</div>';
+  openModal('accDetailModal');
+}
+
 // ── 分析：本月支出分類 ───────────────────────────────────────
 function renderAnalysis() {
   $('anaTitle').textContent = `${current} 支出分類`;
@@ -397,7 +426,7 @@ function renderAssets() {
     const subA = items.reduce((s, n) => s + (balAll[n] || 0), 0);
     return `<div class="acc-group">
       <div class="acc-group-head"><span>${tp}</span><span><b>${money(subT)}</b><small> ｜ 含未來 ${money(subA)}</small></span></div>
-      ${items.map(n => `<div class="acc-line"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}</small></span></div>`).join('')}
+      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
@@ -640,6 +669,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!btn) return;
     anaCategory = anaCategory === btn.dataset.cat ? null : btn.dataset.cat;
     renderAnalysis();
+  });
+  $('aAccounts').addEventListener('click', e => {
+    const line = e.target.closest('[data-acc]');
+    if (line) openAccountDetail(line.dataset.acc);
+  });
+  $('accDetailList').addEventListener('click', e => {
+    const btn = e.target.closest('.rec');
+    if (!btn) return;
+    const rec = pool().find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
+    if (rec) { closeModal('accDetailModal'); openRecordModal(rec); }
   });
   $('anaDetail').addEventListener('click', e => {
     const btn = e.target.closest('.rec');
