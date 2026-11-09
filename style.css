@@ -237,3 +237,151 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 16px; }
 .acc-sum-grid .in { color: var(--in); }
 .acc-sum-grid .out { color: var(--out); }
 #accDetailList { max-height: 50vh; overflow-y: auto; }
+
+/* ── 活潑風格（參考共同帳本：漸層、圓角、飄落小圖示）──────────── */
+:root {
+  --bg: #fdf4ff;
+  --panel: rgba(255,255,255,0.86);
+  --text: #1e1b4b;
+  --muted: #6b6f8a;
+  --line: #f3d9ef;
+  --primary: #db2777;
+  --primary-soft: #fce7f3;
+  --in: #0f766e;
+  --out: #e11d48;
+  --tr: #7c3aed;
+  --danger: #e11d48;
+  --radius: 18px;
+  --grad: linear-gradient(135deg, #22d3ee 0%, #f472b6 55%, #fbbf24 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1033; --panel: rgba(40,30,72,0.88); --text: #f5f3ff; --muted: #b3acd9;
+    --line: #4a3a7a; --primary: #f9a8d4; --primary-soft: #3b2355;
+    --in: #5eead4; --out: #fda4af; --tr: #c4b5fd; --danger: #fda4af;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1033; --panel: rgba(40,30,72,0.88); --text: #f5f3ff; --muted: #b3acd9;
+  --line: #4a3a7a; --primary: #f9a8d4; --primary-soft: #3b2355;
+  --in: #5eead4; --out: #fda4af; --tr: #c4b5fd; --danger: #fda4af;
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34,211,238,0.22), transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(244,114,182,0.22), transparent 40%),
+    radial-gradient(circle at 50% 100%, rgba(251,191,36,0.16), transparent 45%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* 飄落圖示 */
+.particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.particle { position: absolute; top: -40px; opacity: 0; animation: fallFun linear infinite; }
+@keyframes fallFun {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.3; }
+  90% { opacity: 0.22; }
+  100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+}
+
+/* 頂部 */
+.top {
+  background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px 12px;
+  box-shadow: 0 6px 20px rgba(244,114,182,0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .top { background: rgba(26,16,51,0.7); }
+}
+:root[data-theme="dark"] .top { background: rgba(26,16,51,0.7); }
+.top h1 {
+  font-size: 22px; font-weight: 700;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.tagline { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+#monthSel { border-radius: 14px; background: var(--panel); font-weight: 500; }
+.icon-btn { border-radius: 14px; background: var(--panel); }
+
+.btn { border-radius: 14px; font-weight: 500; }
+.btn.primary {
+  background: var(--grad); border: none; color: #1e1b4b; font-weight: 700;
+  box-shadow: 0 6px 16px rgba(244,114,182,0.35);
+}
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { border-radius: 14px; }
+
+/* 摘要卡片 */
+main { position: relative; z-index: 1; }
+.card {
+  border: none; border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 8px 22px rgba(244,114,182,0.12);
+  padding: 14px 16px; position: relative; overflow: hidden;
+}
+.card::after {
+  content: ""; position: absolute; right: -18px; top: -18px; width: 70px; height: 70px;
+  border-radius: 50%; background: var(--grad); opacity: 0.18;
+}
+.card span { font-weight: 500; }
+.card strong { font-size: 20px; }
+.card.big { background: var(--grad); }
+.card.big span, .card.big small { color: #1e1b4b; }
+.card.big strong { color: #1e1b4b; }
+
+.sync { border-radius: 999px; display: inline-block; padding: 3px 10px; background: var(--primary-soft); color: var(--text); }
+
+/* 搜尋 */
+.search input { border-radius: 999px; padding: 12px 18px; border: 2px solid var(--line); box-shadow: 0 4px 14px rgba(244,114,182,0.08); }
+.search input:focus { outline: none; border-color: var(--primary); }
+
+/* 日期標題：小膠囊 */
+.date-head {
+  display: inline-block; background: var(--primary-soft); color: var(--primary);
+  font-weight: 700; padding: 3px 12px; border-radius: 999px; margin: 18px 2px 8px;
+}
+
+/* 紀錄卡片 */
+.rec {
+  border: none; border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.rec:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(244,114,182,0.18); }
+.rec-item { font-weight: 700; }
+.rec-amt { font-family: 'DM Mono', 'Noto Sans TC', monospace; font-size: 16px; }
+
+/* 分頁：膠囊 */
+.tabs { gap: 8px; margin-top: 12px; padding-bottom: 2px; }
+.tab {
+  border-radius: 999px; border: 2px solid var(--line); background: var(--panel);
+  font-weight: 500; padding: 7px 14px;
+}
+.tab.active {
+  background: var(--grad); border-color: transparent; color: #1e1b4b;
+  box-shadow: 0 6px 14px rgba(244,114,182,0.3);
+}
+
+/* 分析 / 年度 / 財產 */
+.bar-row { border-radius: 16px; border: none; background: var(--panel); box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
+.bar-row.active { box-shadow: 0 0 0 2px var(--primary), 0 6px 16px rgba(244,114,182,0.2); }
+.bar i { background: var(--grad); }
+.chart-box { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 8px 22px rgba(244,114,182,0.1); }
+.acc-group { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 6px 18px rgba(244,114,182,0.1); }
+.acc-group-head { background: var(--primary-soft); color: var(--text); border-radius: var(--radius) var(--radius) 0 0; }
+.section-title { color: var(--primary); font-weight: 700; }
+.panel-head h2 { font-weight: 700; }
+
+/* 彈窗與表單 */
+.sheet { border-radius: 24px 24px 0 0; background: var(--panel); backdrop-filter: blur(14px); }
+@media (min-width: 640px) { .sheet { border-radius: 24px; } }
+.sheet input, .sheet select { border-radius: 14px; border: 2px solid var(--line); }
+.sheet input:focus, .sheet select:focus { outline: none; border-color: var(--primary); }
+.seg { border-radius: 16px; background: var(--primary-soft); }
+.seg button { border-radius: 12px; }
+.seg button.active { background: var(--grad); color: #1e1b4b; font-weight: 700; box-shadow: none; }
+.toast { border-radius: 999px; background: var(--grad); color: #1e1b4b; font-weight: 700; }

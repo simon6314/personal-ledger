@@ -11,20 +11,22 @@
 </head>
 <body>
 
+<div class="particles" id="particles" aria-hidden="true"></div>
+
 <header class="top">
   <div class="top-row">
-    <h1>我的帳本</h1>
+    <div><h1>📒 我的帳本</h1><p class="tagline">一筆一筆，把錢看清楚 ✨</p></div>
     <button id="btnSettings" class="icon-btn" aria-label="設定">⚙</button>
   </div>
   <div class="top-row" id="monthRow">
     <select id="monthSel" aria-label="選擇月份"></select>
-    <button id="btnAdd" class="btn primary">＋ 新增</button>
+    <button id="btnAdd" class="btn primary">✨ 新增</button>
   </div>
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="records">明細</button>
-    <button class="tab" data-tab="analysis">分析</button>
-    <button class="tab" data-tab="annual">年度</button>
-    <button class="tab" data-tab="assets">財產</button>
+    <button class="tab active" data-tab="records">📝 明細</button>
+    <button class="tab" data-tab="analysis">📊 分析</button>
+    <button class="tab" data-tab="annual">📅 年度</button>
+    <button class="tab" data-tab="assets">💎 財產</button>
   </nav>
 </header>
 
@@ -35,10 +37,10 @@
       <input id="searchInput" type="search" placeholder="搜尋全部紀錄：項目、分類、帳戶、備註、金額" aria-label="搜尋">
     </div>
     <section class="summary">
-      <div class="card"><span>收入</span><strong id="sumIncome" class="in">-</strong></div>
-      <div class="card"><span>支出</span><strong id="sumExpense" class="out">-</strong></div>
-      <div class="card"><span>結餘</span><strong id="sumBalance">-</strong></div>
-      <div class="card"><span>轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
+      <div class="card"><span>💚 收入</span><strong id="sumIncome" class="in">-</strong></div>
+      <div class="card"><span>🧾 支出</span><strong id="sumExpense" class="out">-</strong></div>
+      <div class="card"><span>🐷 結餘</span><strong id="sumBalance">-</strong></div>
+      <div class="card"><span>🔁 轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
     </section>
     <div id="sync" class="sync">載入中…</div>
     <section id="list" class="list"></section>
@@ -164,6 +166,24 @@
 </div>
 
 <div id="toast" class="toast hidden"></div>
+<script>
+// 飄落的小圖示（純裝飾）
+(function () {
+  var box = document.getElementById("particles");
+  if (!box) return;
+  var icons = ["💰", "🍜", "✨", "🌸", "🧋", "🎉", "💸", "🐾"];
+  for (var i = 0; i < 14; i++) {
+    var el = document.createElement("span");
+    el.className = "particle";
+    el.textContent = icons[i % icons.length];
+    el.style.left = Math.random() * 100 + "vw";
+    el.style.animationDuration = (12 + Math.random() * 14) + "s";
+    el.style.animationDelay = (-Math.random() * 20) + "s";
+    el.style.fontSize = (14 + Math.random() * 12) + "px";
+    box.appendChild(el);
+  }
+})();
+</script>
 <script src="app.js?v=2026110902"></script>
 </body>
 </html>
