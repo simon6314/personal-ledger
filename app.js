@@ -11,6 +11,7 @@ let editing = null;                 // 正在編輯的紀錄（新增時為 null
 let txType = '支出';                // 支出 / 收入 / 轉帳
 let charts = {};                    // Chart.js 實例
 let anaCategory = null;             // 分析頁目前展開的分類
+let lastOpened = null;              // 最近開啟的紀錄（供「複製」使用）
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -378,12 +379,15 @@ function fillAccountSelects(acc = {}) {
   $('recToAccount').innerHTML = accountOptionsHtml(acc.toAccount || '');
 }
 
-function openRecordModal(rec = null) {
-  editing = rec;
-  $('recTitle').textContent = rec ? '編輯紀錄' : '新增紀錄';
-  $('recDelete').classList.toggle('hidden', !rec);
+// asCopy：以這筆紀錄為範本建立新紀錄（日期改為今天，金額保留可再修改）
+function openRecordModal(rec = null, asCopy = false) {
+  lastOpened = rec;
+  editing = asCopy ? null : rec;
+  $('recTitle').textContent = asCopy ? '複製紀錄' : (rec ? '編輯紀錄' : '新增紀錄');
+  $('recDelete').classList.toggle('hidden', !rec || asCopy);
+  $('recCopy').classList.toggle('hidden', !rec || asCopy);
   setType(rec ? typeLabelOf(rec) : '支出');
-  $('recDate').value = rec ? rec.iso : todayIso();
+  $('recDate').value = rec && !asCopy ? rec.iso : todayIso();
   $('recAmount').value = rec ? (rec.type === '轉帳' ? rec.transfer : (rec.income || rec.expense)) : '';
   $('recItem').value = rec ? rec.item : '';
   $('recCategory').value = rec ? rec.category : '';
@@ -566,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('recForm').addEventListener('submit', saveRecord);
   $('recDelete').addEventListener('click', deleteRecord);
+  $('recCopy').addEventListener('click', () => { if (lastOpened) openRecordModal(lastOpened, true); });
   $('accList').addEventListener('click', accountAction);
   $('accAddForm').addEventListener('submit', addAccount);
   $('btnForget').addEventListener('click', () => {
