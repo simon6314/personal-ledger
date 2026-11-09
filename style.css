@@ -215,3 +215,11 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 16px; }
 .acc-group-head b { font-variant-numeric: tabular-nums; }
 .acc-line { display: flex; justify-content: space-between; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); font-size: 14px; }
 .acc-line b { font-variant-numeric: tabular-nums; }
+
+/* 搜尋 */
+.search { margin-bottom: 12px; }
+.search input {
+  width: 100%; font: inherit; font-size: 15px; color: var(--text);
+  padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+}
+.search input::placeholder { color: var(--muted); }

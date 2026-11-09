@@ -12,6 +12,7 @@ let txType = '支出';                // 支出 / 收入 / 轉帳
 let charts = {};                    // Chart.js 實例
 let anaCategory = null;             // 分析頁目前展開的分類
 let lastOpened = null;              // 最近開啟的紀錄（供「複製」使用）
+let lastSyncText = '';              // 最近一次同步的狀態文字
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -123,7 +124,8 @@ async function loadAll() {
   setStatus('同步中…');
   const d = await apiGet({ action: 'getAllRecords' });
   all = d.records || [];
-  setStatus('已同步 · ' + new Date().toLocaleTimeString('zh-TW'));
+  lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
+  setStatus(lastSyncText);
   renderCurrentTab();
 }
 
@@ -155,6 +157,9 @@ function renderCurrentTab() {
 
 // ── 明細 ────────────────────────────────────────────────────
 function renderRecords() {
+  const q = $('searchInput') ? $('searchInput').value.trim().toLowerCase() : '';
+  if (q) return renderSearch(q);
+  if (lastSyncText) setStatus(lastSyncText);   // 離開搜尋時還原狀態列
   const recs = monthRecords();
   const inc = sum(recs, 'income');
   const exp = sum(recs, 'expense');
@@ -165,9 +170,25 @@ function renderRecords() {
   renderList(recs);
 }
 
-function renderList(recs) {
+// 搜尋：跨所有月份，比對項目、分類、帳戶、轉入帳戶、備註、類型與金額
+function renderSearch(q) {
+  const hits = all.filter(r => [r.item, r.category, r.account, r.toAccount, r.note, r.type,
+    String(r.income || ''), String(r.expense || ''), String(r.transfer || '')]
+    .join(' ').toLowerCase().includes(q));
+  const inc = sum(hits, 'income');
+  const exp = sum(hits, 'expense');
+  $('sumIncome').textContent = money(inc);
+  $('sumExpense').textContent = money(exp);
+  $('sumBalance').textContent = money(inc - exp);
+  $('sumTransfer').textContent = money(sum(hits, 'transfer'));
+  const shown = hits.slice().sort((a, b) => (a.iso < b.iso ? 1 : -1)).slice(0, 300);
+  setStatus(`搜尋「${q}」：共 ${hits.length} 筆${hits.length > shown.length ? `（顯示前 ${shown.length} 筆）` : ''}`);
+  renderList(shown, '找不到符合的紀錄');
+}
+
+function renderList(recs, emptyText = '這個月還沒有紀錄') {
   const el = $('list');
-  if (!recs.length) { el.innerHTML = '<div class="empty">這個月還沒有紀錄</div>'; return; }
+  if (!recs.length) { el.innerHTML = `<div class="empty">${emptyText}</div>`; return; }
   const groups = {};
   recs.forEach(r => { (groups[r.iso] = groups[r.iso] || []).push(r); });
   const dates = Object.keys(groups).sort().reverse();
@@ -543,6 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btnSettings').addEventListener('click', openSettings);
   $('monthSel').addEventListener('change', e => switchMonth(e.target.value));
   $('yearSel').addEventListener('change', renderAnnual);
+  $('searchInput').addEventListener('input', renderRecords);
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
   $('list').addEventListener('click', e => {
