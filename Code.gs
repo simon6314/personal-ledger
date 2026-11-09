@@ -77,7 +77,7 @@ function recordToRow_(d) {
   return row;
 }
 
-// ── 讀取：GET ?token=...&action=getSheets | getAccounts | getAll&sheet=... ──────────
+// ── 讀取：GET ?token=...&action=getSheets | getAccounts | getAllRecords | getAll&sheet=... ──────────
 function doGet(e) {
   const p = e.parameter;
   if (!checkToken_(p.token)) return json_({ error: 'unauthorized' });
@@ -98,6 +98,10 @@ function doGet(e) {
       accounts.push({ name: String(values[i][0]), type: String(values[i][1] || '') });
     }
     return json_({ accounts });
+  }
+
+  if (p.action === 'getAllRecords') {
+    return json_({ records: getAllRecords_() });
   }
 
   if (p.action === 'getAll') {
@@ -257,4 +261,23 @@ function handleAccount_(action, body, data) {
   }
 
   return { error: 'bad action' };
+}
+
+// 全部月份的紀錄（供統計使用）：每筆含 sheet、row、iso（YYYY-MM-DD）
+function getAllRecords_() {
+  const out = [];
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sh => {
+    const name = sh.getName();
+    const m = name.match(/^(\d{4})\/(\d{1,2})月$/);
+    if (!m || sh.getLastRow() < 2) return;
+    const values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.length).getValues();
+    values.forEach((v, i) => {
+      if (!v[COL.item]) return;
+      const rec = rowToRecord_(v, i + 2);
+      rec.sheet = name;
+      rec.iso = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + rec.date.replace('/', '-');
+      out.push(rec);
+    });
+  });
+  return out;
 }
