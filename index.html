@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -15,21 +16,72 @@
     <h1>我的帳本</h1>
     <button id="btnSettings" class="icon-btn" aria-label="設定">⚙</button>
   </div>
-  <div class="top-row">
+  <div class="top-row" id="monthRow">
     <select id="monthSel" aria-label="選擇月份"></select>
     <button id="btnAdd" class="btn primary">＋ 新增</button>
   </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="records">明細</button>
+    <button class="tab" data-tab="analysis">分析</button>
+    <button class="tab" data-tab="annual">年度</button>
+    <button class="tab" data-tab="assets">財產</button>
+  </nav>
 </header>
 
 <main>
-  <section class="summary">
-    <div class="card"><span>收入</span><strong id="sumIncome" class="in">-</strong></div>
-    <div class="card"><span>支出</span><strong id="sumExpense" class="out">-</strong></div>
-    <div class="card"><span>結餘</span><strong id="sumBalance">-</strong></div>
-    <div class="card"><span>轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
+  <!-- 明細 -->
+  <section id="tab-records" class="tab-panel">
+    <section class="summary">
+      <div class="card"><span>收入</span><strong id="sumIncome" class="in">-</strong></div>
+      <div class="card"><span>支出</span><strong id="sumExpense" class="out">-</strong></div>
+      <div class="card"><span>結餘</span><strong id="sumBalance">-</strong></div>
+      <div class="card"><span>轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
+    </section>
+    <div id="sync" class="sync">載入中…</div>
+    <section id="list" class="list"></section>
   </section>
-  <div id="sync" class="sync">載入中…</div>
-  <section id="list" class="list"></section>
+
+  <!-- 分析：本月支出分類 -->
+  <section id="tab-analysis" class="tab-panel hidden">
+    <div class="panel-head">
+      <h2 id="anaTitle">本月支出分類</h2>
+      <strong id="anaTotal" class="out">-</strong>
+    </div>
+    <div id="anaCats" class="bars"></div>
+    <h3 class="section-title" id="anaDetailTitle">分類明細</h3>
+    <div id="anaDetail" class="list"><div class="empty">👆 點選上方分類，查看明細</div></div>
+  </section>
+
+  <!-- 年度 -->
+  <section id="tab-annual" class="tab-panel hidden">
+    <div class="panel-head">
+      <select id="yearSel" aria-label="選擇年度"></select>
+    </div>
+    <section class="summary">
+      <div class="card"><span>年度收入</span><strong id="yInc" class="in">-</strong></div>
+      <div class="card"><span>年度支出</span><strong id="yExp" class="out">-</strong></div>
+      <div class="card"><span>年度結餘</span><strong id="yBal">-</strong></div>
+      <div class="card"><span>月平均支出</span><strong id="yAvg">-</strong></div>
+    </section>
+    <h3 class="section-title">月度收支</h3>
+    <div class="chart-box"><canvas id="annualChart"></canvas></div>
+    <h3 class="section-title">年度支出分類</h3>
+    <div id="yCats" class="bars"></div>
+  </section>
+
+  <!-- 財產 -->
+  <section id="tab-assets" class="tab-panel hidden">
+    <section class="summary">
+      <div class="card big"><span>全部財產（淨值）</span><strong id="aNet">-</strong></div>
+      <div class="card"><span>現金與銀行</span><strong id="aBank" class="in">-</strong></div>
+      <div class="card"><span>信用卡餘額</span><strong id="aCard">-</strong></div>
+    </section>
+    <p class="hint">統計到今天為止，未來日期的紀錄不計入。信用卡為負數代表尚未還清的金額。</p>
+    <h3 class="section-title">淨值走勢（每月底）</h3>
+    <div class="chart-box"><canvas id="netChart"></canvas></div>
+    <h3 class="section-title">各帳戶餘額</h3>
+    <div id="aAccounts"></div>
+  </section>
 </main>
 
 <!-- 新增／編輯紀錄 -->
@@ -46,7 +98,7 @@
     </div>
     <label>日期<input type="date" id="recDate" required></label>
     <label>金額<input type="number" id="recAmount" inputmode="decimal" min="0" step="any" required></label>
-    <label>項目<input type="text" id="recItem" placeholder="例如：午餐（轉帳可留空）"></label>
+    <label>項目<input type="text" id="recItem" placeholder="例如：午餐"></label>
     <label id="lblAccount"><span id="lblAccountText">帳戶</span><select id="recAccount" required></select></label>
     <label id="lblToAccount" class="hidden">轉入帳戶<select id="recToAccount"></select></label>
     <label id="lblCategory">分類<input type="text" id="recCategory" list="catList" placeholder="例如：食物"></label>
@@ -59,7 +111,7 @@
   </form>
 </div>
 
-<!-- 設定：帳戶管理 + token -->
+<!-- 設定：帳戶管理 + 存取碼 -->
 <div id="setModal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="sheet">
     <div class="sheet-head">

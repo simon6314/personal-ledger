@@ -6,9 +6,11 @@ const TYPE_ORDER = ['現金', '銀行', '信用卡', '其他'];
 let current = currentSheetName();   // 目前檢視的月份，例如 "2026/11月"
 let months = [];                    // 所有月份分頁
 let accounts = [];                  // [{name, type}]
-let records = [];                   // 目前月份的紀錄
+let all = [];                       // 全部紀錄（含 sheet、row、iso）
 let editing = null;                 // 正在編輯的紀錄（新增時為 null）
 let txType = '支出';                // 支出 / 收入 / 轉帳
+let charts = {};                    // Chart.js 實例
+let anaCategory = null;             // 分析頁目前展開的分類
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,12 +22,21 @@ const sum = (list, key) => list.reduce((a, r) => a + (Number(r[key]) || 0), 0);
 function currentSheetName() { const d = new Date(); return `${d.getFullYear()}/${d.getMonth() + 1}月`; }
 function todayIso() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function sheetFromIso(iso) { const [y, m] = iso.split('-'); return `${y}/${parseInt(m, 10)}月`; }
-function isoFromSheet(sheet, mmdd) {
-  const m = sheet.match(/^(\d{4})\/(\d{1,2})/);
-  const [mm, dd] = String(mmdd).split('/');
-  return `${m[1]}-${pad(m[2])}-${pad(dd)}`;
-}
 function sheetOrder(s) { const m = s.match(/^(\d{4})\/(\d{1,2})/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; }
+function isoYM(sheet) { const m = sheet.match(/^(\d{4})\/(\d{1,2})/); return `${m[1]}-${pad(m[2])}`; }
+function lastDayIso(sheet) { const [y, m] = isoYM(sheet).split('-').map(Number); return `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`; }
+function monthRecords() { return all.filter(r => r.sheet === current); }
+function typeOf(name) { const a = accounts.find(x => x.name === name); return (a && a.type) || '其他'; }
+
+// 依 key 分組加總，依金額由大到小排序
+function groupSum(list, keyFn, valKey) {
+  const m = new Map();
+  list.forEach(r => {
+    const k = keyFn(r);
+    m.set(k, (m.get(k) || 0) + (Number(r[valKey]) || 0));
+  });
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
 
 // ── 存取碼（只存在這台裝置）────────────────────────────────────
 function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
@@ -84,8 +95,13 @@ async function init() {
   try {
     await loadMonths();
     await loadAccounts();
-    await loadRecords();
+    await loadAll();
   } catch (e) { handleError(e); }
+}
+
+function fillMonthSelect() {
+  $('monthSel').innerHTML = months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  $('monthSel').value = current;
 }
 
 async function loadMonths() {
@@ -93,8 +109,7 @@ async function loadMonths() {
   const set = new Set(d.sheets || []);
   set.add(currentSheetName());
   months = [...set].sort((a, b) => sheetOrder(b) - sheetOrder(a));
-  $('monthSel').innerHTML = months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-  $('monthSel').value = current;
+  fillMonthSelect();
 }
 
 async function loadAccounts() {
@@ -103,43 +118,57 @@ async function loadAccounts() {
   fillAccountSelects();
 }
 
-async function loadRecords() {
+async function loadAll() {
   setStatus('同步中…');
-  const d = await apiGet({ action: 'getAll', sheet: current });
-  records = (d.records || []).map(r => ({ ...r, sheet: current, iso: isoFromSheet(current, r.date) }));
+  const d = await apiGet({ action: 'getAllRecords' });
+  all = d.records || [];
   setStatus('已同步 · ' + new Date().toLocaleTimeString('zh-TW'));
-  render();
+  renderCurrentTab();
 }
 
 async function switchMonth(sheet) {
   current = sheet;
-  if (!months.includes(sheet)) { months = [sheet, ...months].sort((a, b) => sheetOrder(b) - sheetOrder(a)); }
-  $('monthSel').innerHTML = months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-  $('monthSel').value = current;
-  try { await loadRecords(); } catch (e) { handleError(e); }
+  if (!months.includes(sheet)) months = [sheet, ...months].sort((a, b) => sheetOrder(b) - sheetOrder(a));
+  fillMonthSelect();
+  renderCurrentTab();
 }
 
-// ── 畫面 ────────────────────────────────────────────────────
-function render() {
-  renderSummary();
-  renderList();
+// ── 分頁切換 ────────────────────────────────────────────────
+let activeTab = 'records';
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
+  // 月份選單只在明細與分析用到
+  $('monthRow').classList.toggle('hidden', name === 'annual' || name === 'assets');
+  renderCurrentTab();
 }
 
-function renderSummary() {
-  const inc = sum(records, 'income');
-  const exp = sum(records, 'expense');
-  const tr = sum(records, 'transfer');
+function renderCurrentTab() {
+  if (!all.length && activeTab !== 'records') return;
+  if (activeTab === 'records') renderRecords();
+  else if (activeTab === 'analysis') renderAnalysis();
+  else if (activeTab === 'annual') renderAnnual();
+  else if (activeTab === 'assets') renderAssets();
+}
+
+// ── 明細 ────────────────────────────────────────────────────
+function renderRecords() {
+  const recs = monthRecords();
+  const inc = sum(recs, 'income');
+  const exp = sum(recs, 'expense');
   $('sumIncome').textContent = money(inc);
   $('sumExpense').textContent = money(exp);
   $('sumBalance').textContent = money(inc - exp);
-  $('sumTransfer').textContent = money(tr);
+  $('sumTransfer').textContent = money(sum(recs, 'transfer'));
+  renderList(recs);
 }
 
-function renderList() {
+function renderList(recs) {
   const el = $('list');
-  if (!records.length) { el.innerHTML = '<div class="empty">這個月還沒有紀錄</div>'; return; }
+  if (!recs.length) { el.innerHTML = '<div class="empty">這個月還沒有紀錄</div>'; return; }
   const groups = {};
-  records.forEach(r => { (groups[r.iso] = groups[r.iso] || []).push(r); });
+  recs.forEach(r => { (groups[r.iso] = groups[r.iso] || []).push(r); });
   const dates = Object.keys(groups).sort().reverse();
   el.innerHTML = dates.map(date => {
     const rows = groups[date].slice().sort((a, b) => b.row - a.row);
@@ -156,7 +185,7 @@ function rowHtml(r) {
     ? `${esc(r.account)} → ${esc(r.toAccount)}`
     : `${esc(r.account)}${r.category ? ' · ' + esc(r.category) : ''}`;
   const note = r.note ? ' · ' + esc(r.note) : '';
-  return `<button class="rec" data-row="${r.row}">
+  return `<button class="rec" data-sheet="${esc(r.sheet)}" data-row="${r.row}">
     <div class="rec-main">
       <div class="rec-item">${esc(r.item)}</div>
       <div class="rec-sub">${sub}${note}</div>
@@ -170,24 +199,154 @@ function typeLabelOf(r) {
   return r.transfer ? '轉帳' : (r.income ? '收入' : '支出');
 }
 
-// ── 帳戶下拉選單（依類型分組）─────────────────────────────────
-function accountOptionsHtml(selected) {
-  const groups = TYPE_ORDER.map(t => {
-    const items = accounts.filter(a => (a.type || '其他') === t);
-    if (!items.length) return '';
-    return `<optgroup label="${esc(t)}">${items.map(a =>
-      `<option value="${esc(a.name)}"${a.name === selected ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</optgroup>`;
-  }).join('');
-  // 不在清單中的舊名稱也保留，避免編輯時被清掉
-  const known = new Set(accounts.map(a => a.name));
-  const extra = selected && !known.has(selected)
-    ? `<option value="${esc(selected)}" selected>${esc(selected)}</option>` : '';
-  return `<option value="">請選擇</option>${groups}${extra}`;
+// ── 分析：本月支出分類 ───────────────────────────────────────
+function renderAnalysis() {
+  $('anaTitle').textContent = `${current} 支出分類`;
+  const exps = monthRecords().filter(r => r.expense > 0);
+  const total = sum(exps, 'expense');
+  $('anaTotal').textContent = money(total);
+  const cats = groupSum(exps, r => r.category || '未分類', 'expense');
+  const max = cats.length ? cats[0][1] : 0;
+  $('anaCats').innerHTML = cats.length ? cats.map(([name, v]) => `
+    <button class="bar-row${anaCategory === name ? ' active' : ''}" data-cat="${esc(name)}">
+      <span class="bar-name">${esc(name)}</span>
+      <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
+      <b>${money(v)}</b>
+      <small>${total ? Math.round(v / total * 100) : 0}%</small>
+    </button>`).join('') : '<div class="empty">這個月還沒有支出</div>';
+  renderAnaDetail(exps);
 }
 
-function fillAccountSelects(acc = {}) {
-  $('recAccount').innerHTML = accountOptionsHtml(acc.account || '');
-  $('recToAccount').innerHTML = accountOptionsHtml(acc.toAccount || '');
+function renderAnaDetail(exps) {
+  if (!anaCategory) {
+    $('anaDetailTitle').textContent = '分類明細';
+    $('anaDetail').innerHTML = '<div class="empty">👆 點選上方分類，查看明細</div>';
+    return;
+  }
+  const rows = exps.filter(r => (r.category || '未分類') === anaCategory);
+  $('anaDetailTitle').textContent = `${anaCategory}（${rows.length} 筆）`;
+  $('anaDetail').innerHTML = rows.length
+    ? rows.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map(rowHtml).join('')
+    : '<div class="empty">沒有紀錄</div>';
+}
+
+// ── 年度 ────────────────────────────────────────────────────
+function yearsAvailable() {
+  const ys = new Set(all.map(r => Number(r.iso.slice(0, 4))));
+  ys.add(new Date().getFullYear());
+  return [...ys].sort((a, b) => b - a);
+}
+
+function renderAnnual() {
+  const years = yearsAvailable();
+  if (!$('yearSel').options.length) {
+    $('yearSel').innerHTML = years.map(y => `<option value="${y}">${y} 年</option>`).join('');
+    $('yearSel').value = String(new Date().getFullYear());
+  }
+  const year = Number($('yearSel').value);
+  const yr = all.filter(r => r.iso.startsWith(year + '-'));
+  const monthly = Array.from({ length: 12 }, (_, i) => {
+    const k = `${year}-${pad(i + 1)}`;
+    const rs = yr.filter(r => r.iso.startsWith(k));
+    return { m: i + 1, inc: sum(rs, 'income'), exp: sum(rs, 'expense') };
+  });
+  const inc = sum(yr, 'income');
+  const exp = sum(yr, 'expense');
+  $('yInc').textContent = money(inc);
+  $('yExp').textContent = money(exp);
+  $('yBal').textContent = money(inc - exp);
+  $('yBal').className = (inc - exp) >= 0 ? 'in' : 'out';
+  const passed = year === new Date().getFullYear() ? new Date().getMonth() + 1 : 12;
+  $('yAvg').textContent = money(exp / Math.max(1, passed));
+
+  drawChart('annualChart', {
+    type: 'bar',
+    data: {
+      labels: monthly.map(x => x.m + '月'),
+      datasets: [
+        { label: '收入', data: monthly.map(x => x.inc), backgroundColor: '#46d39a' },
+        { label: '支出', data: monthly.map(x => x.exp), backgroundColor: '#ff7b8c' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+  });
+
+  const cats = groupSum(yr.filter(r => r.expense > 0), r => r.category || '未分類', 'expense');
+  const max = cats.length ? cats[0][1] : 0;
+  $('yCats').innerHTML = cats.length ? cats.map(([name, v]) => `
+    <div class="bar-row static">
+      <span class="bar-name">${esc(name)}</span>
+      <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
+      <b>${money(v)}</b>
+      <small>${exp ? Math.round(v / exp * 100) : 0}%</small>
+    </div>`).join('') : '<div class="empty">這一年還沒有支出</div>';
+}
+
+// ── 財產 ────────────────────────────────────────────────────
+// 依交易累加各帳戶餘額（只計到 asOfIso 為止）
+function balancesAsOf(asOfIso) {
+  const bal = {};
+  accounts.forEach(a => { bal[a.name] = 0; });
+  const add = (name, v) => { if (!name) return; bal[name] = (bal[name] || 0) + v; };
+  all.forEach(r => {
+    if (r.iso > asOfIso) return;
+    if (r.type === '轉帳' || (r.transfer && !r.income && !r.expense)) {
+      add(r.account, -(Number(r.transfer) || 0));
+      add(r.toAccount, Number(r.transfer) || 0);
+    } else if (r.income) add(r.account, Number(r.income) || 0);
+    else if (r.expense) add(r.account, -(Number(r.expense) || 0));
+  });
+  return bal;
+}
+
+function renderAssets() {
+  const today = todayIso();
+  const bal = balancesAsOf(today);
+  const names = Object.keys(bal);
+  const net = names.reduce((s, n) => s + bal[n], 0);
+  const bank = names.filter(n => ['現金', '銀行'].includes(typeOf(n))).reduce((s, n) => s + bal[n], 0);
+  const card = names.filter(n => typeOf(n) === '信用卡').reduce((s, n) => s + bal[n], 0);
+  $('aNet').textContent = money(net);
+  $('aNet').className = net >= 0 ? 'in' : 'out';
+  $('aBank').textContent = money(bank);
+  $('aCard').textContent = money(card);
+  $('aCard').className = card < 0 ? 'out' : '';
+
+  $('aAccounts').innerHTML = TYPE_ORDER.map(t => {
+    const items = names.filter(n => typeOf(n) === t).sort((a, b) => bal[b] - bal[a]);
+    if (!items.length) return '';
+    const subtotal = items.reduce((s, n) => s + bal[n], 0);
+    return `<div class="acc-group">
+      <div class="acc-group-head"><span>${t}</span><b>${money(subtotal)}</b></div>
+      ${items.map(n => `<div class="acc-line"><span>${esc(n)}</span><b class="${bal[n] < 0 ? 'out' : ''}">${money(bal[n])}</b></div>`).join('')}
+    </div>`;
+  }).join('') || '<div class="empty">還沒有帳戶</div>';
+
+  // 淨值走勢：每個月底的淨值（只到今天為止）
+  const thisYM = today.slice(0, 7);
+  const ascMonths = months.filter(m => isoYM(m) <= thisYM).sort((a, b) => sheetOrder(a) - sheetOrder(b));
+  const series = ascMonths.map(m => {
+    const asOf = isoYM(m) === thisYM ? today : lastDayIso(m);   // 當月只算到今天
+    const b = balancesAsOf(asOf);
+    return Object.values(b).reduce((s, v) => s + v, 0);
+  });
+  drawChart('netChart', {
+    type: 'line',
+    data: {
+      labels: ascMonths.map(m => m.replace('/', '.').replace('月', '')),
+      datasets: [{ label: '淨值', data: series, borderColor: '#5b6cf0', backgroundColor: 'rgba(91,108,240,.15)', fill: true, tension: .25, pointRadius: 2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => Number(v).toLocaleString('zh-TW') } } } }
+  });
+}
+
+// ── Chart.js 包裝（CDN 載入失敗時不影響其他功能）──────────────
+function drawChart(id, config) {
+  if (typeof Chart === 'undefined') return;
+  const el = $(id);
+  if (!el) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(el, config);
 }
 
 // ── 新增／編輯紀錄 ───────────────────────────────────────────
@@ -201,6 +360,24 @@ function setType(t) {
   $('recItem').placeholder = isT ? '轉帳可留空，會自動填「轉帳」' : '例如：午餐';
 }
 
+function accountOptionsHtml(selected) {
+  const groups = TYPE_ORDER.map(t => {
+    const items = accounts.filter(a => (a.type || '其他') === t);
+    if (!items.length) return '';
+    return `<optgroup label="${esc(t)}">${items.map(a =>
+      `<option value="${esc(a.name)}"${a.name === selected ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</optgroup>`;
+  }).join('');
+  const known = new Set(accounts.map(a => a.name));
+  const extra = selected && !known.has(selected)
+    ? `<option value="${esc(selected)}" selected>${esc(selected)}</option>` : '';
+  return `<option value="">請選擇</option>${groups}${extra}`;
+}
+
+function fillAccountSelects(acc = {}) {
+  $('recAccount').innerHTML = accountOptionsHtml(acc.account || '');
+  $('recToAccount').innerHTML = accountOptionsHtml(acc.toAccount || '');
+}
+
 function openRecordModal(rec = null) {
   editing = rec;
   $('recTitle').textContent = rec ? '編輯紀錄' : '新增紀錄';
@@ -212,7 +389,7 @@ function openRecordModal(rec = null) {
   $('recCategory').value = rec ? rec.category : '';
   $('recNote').value = rec ? rec.note : '';
   fillAccountSelects(rec ? { account: rec.account, toAccount: rec.toAccount } : {});
-  $('catList').innerHTML = [...new Set(records.map(r => r.category).filter(Boolean))]
+  $('catList').innerHTML = [...new Set(all.map(r => r.category).filter(Boolean))]
     .map(c => `<option value="${esc(c)}"></option>`).join('');
   openModal('recModal');
 }
@@ -259,10 +436,10 @@ async function saveRecord(e) {
     closeModal('recModal');
     toast('已儲存 ✓');
     if (targetSheet !== current) await switchMonth(targetSheet);
-    else await loadRecords();
+    await loadAll();
   } catch (err) {
     handleError(err);
-    if (!(err instanceof AuthError)) loadRecords().catch(() => {});
+    if (!(err instanceof AuthError)) loadAll().catch(() => {});
   } finally {
     btn.disabled = false;
   }
@@ -275,7 +452,7 @@ async function deleteRecord() {
     await apiPost({ action: 'delete', sheet: editing.sheet, row: editing.row });
     closeModal('recModal');
     toast('已刪除');
-    await loadRecords();
+    await loadAll();
   } catch (err) { handleError(err); }
 }
 
@@ -316,7 +493,7 @@ async function accountAction(e) {
       toast('已刪除');
     }
     await loadAccounts();
-    await loadRecords();
+    await loadAll();
     renderAccountList();
   } catch (err) {
     if (err instanceof AuthError) return handleError(err);
@@ -334,6 +511,7 @@ async function addAccount(e) {
     toast('已新增 ✓');
     await loadAccounts();
     renderAccountList();
+    renderCurrentTab();
   } catch (err) {
     if (err instanceof AuthError) return handleError(err);
     toast(err.message);
@@ -360,12 +538,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('btnSettings').addEventListener('click', openSettings);
   $('monthSel').addEventListener('change', e => switchMonth(e.target.value));
+  $('yearSel').addEventListener('change', renderAnnual);
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
   $('list').addEventListener('click', e => {
     const btn = e.target.closest('.rec');
     if (!btn) return;
-    const rec = records.find(r => String(r.row) === btn.dataset.row);
+    const rec = all.find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
     if (rec) openRecordModal(rec);
   });
+  $('anaCats').addEventListener('click', e => {
+    const btn = e.target.closest('[data-cat]');
+    if (!btn) return;
+    anaCategory = anaCategory === btn.dataset.cat ? null : btn.dataset.cat;
+    renderAnalysis();
+  });
+  $('anaDetail').addEventListener('click', e => {
+    const btn = e.target.closest('.rec');
+    if (!btn) return;
+    const rec = all.find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
+    if (rec) openRecordModal(rec);
+  });
+
   $('recType').addEventListener('click', e => {
     const b = e.target.closest('button[data-type]');
     if (b) setType(b.dataset.type);
@@ -394,5 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal').forEach(m =>
     m.addEventListener('click', e => { if (e.target === m && m.id !== 'tokenModal') closeModal(m.id); }));
 
+  switchTab('records');
   init();
 });
