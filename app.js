@@ -32,6 +32,10 @@ function isoYM(sheet) { const m = sheet.match(/^(\d{4})\/(\d{1,2})/); return `${
 function lastDayIso(sheet) { const [y, m] = isoYM(sheet).split('-').map(Number); return `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`; }
 function pool() { return allLoaded ? all : monthCache; }
 function monthRecords() { return pool().filter(r => r.sheet === current); }
+// 把後端回傳的紀錄統一補上正確的 iso（YYYY-MM-DD）；舊快取或後端 iso 錯誤時以此修正
+function fixRecords(list) {
+  return (list || []).map(r => (r.sheet && r.date) ? { ...r, iso: isoFromDate(r.sheet, r.date) } : r);
+}
 function isoFromDate(sheet, mmdd) {
   const m = sheet.match(/^(\d{4})\/(\d{1,2})/);
   const [mm, dd] = String(mmdd).split('/');
@@ -127,7 +131,7 @@ async function init() {
   if (c) {
     months = Array.isArray(c.months) ? c.months : [];
     accounts = Array.isArray(c.accounts) ? c.accounts : [];
-    all = Array.isArray(c.all) ? c.all : [];
+    all = Array.isArray(c.all) ? fixRecords(c.all) : [];
     allLoaded = Array.isArray(c.all);
     if (months.length) fillMonthSelect();
     fillAccountSelects();
@@ -185,7 +189,7 @@ async function loadFull() {
   try {
     const d = await apiGet({ action: 'getAllRecords' });
     if (seq !== fullSeq) return;
-    all = d.records || [];
+    all = fixRecords(d.records);
     allLoaded = true;
     lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
     setStatus(lastSyncText);

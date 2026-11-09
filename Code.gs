@@ -275,7 +275,7 @@ function getAllRecords_() {
       if (!v[COL.item]) return;
       const rec = rowToRecord_(v, i + 2);
       rec.sheet = name;
-      rec.iso = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + rec.date.replace('/', '-');
+      rec.iso = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + rec.date.split('/')[1]).slice(-2);
       out.push(rec);
     });
   });
