@@ -52,7 +52,19 @@ function groupSum(list, keyFn, valKey) {
 // ── 存取碼（只存在這台裝置）────────────────────────────────────
 function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
 function saveToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* 無法儲存時仍可用本次工作階段 */ } }
-function forgetToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } }
+function forgetToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } clearCache(); }
+
+// ── 本機快取（只存在這台裝置，清除存取碼時一併清除）──────────────
+const CACHE_KEY = 'personal_ledger_cache_v1';
+function saveCache() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 1, ts: Date.now(), months, accounts, all })); }
+  catch (e) { /* 空間不足或無法使用時略過，不影響正常運作 */ }
+}
+function loadCache() {
+  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return c && c.v === 1 ? c : null; }
+  catch (e) { return null; }
+}
+function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch (e) { /* ignore */ } }
 
 class AuthError extends Error {}
 
@@ -110,6 +122,19 @@ function handleError(e) {
 
 async function init() {
   if (!getToken()) return openTokenModal();
+  // 先用快取立即顯示，再到網路上更新
+  const c = loadCache();
+  if (c) {
+    months = Array.isArray(c.months) ? c.months : [];
+    accounts = Array.isArray(c.accounts) ? c.accounts : [];
+    all = Array.isArray(c.all) ? c.all : [];
+    allLoaded = Array.isArray(c.all);
+    if (months.length) fillMonthSelect();
+    fillAccountSelects();
+    lastSyncText = '快取 · ' + new Date(c.ts).toLocaleString('zh-TW');
+    setStatus(lastSyncText + '（更新中…）');
+    renderCurrentTab();
+  }
   try {
     await loadMonths();
     await loadAccounts();
@@ -128,12 +153,14 @@ async function loadMonths() {
   set.add(currentSheetName());
   months = [...set].sort((a, b) => sheetOrder(b) - sheetOrder(a));
   fillMonthSelect();
+  saveCache();
 }
 
 async function loadAccounts() {
   const d = await apiGet({ action: 'getAccounts' });
   accounts = d.accounts || [];
   fillAccountSelects();
+  saveCache();
 }
 
 // 先載入目前月份（很快就能看到明細），再於背景載入全部月份（統計用）
@@ -162,6 +189,7 @@ async function loadFull() {
     allLoaded = true;
     lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
     setStatus(lastSyncText);
+    saveCache();
     renderCurrentTab();
   } catch (e) { handleError(e); }
 }
