@@ -13,6 +13,9 @@ let charts = {};                    // Chart.js 實例
 let anaCategory = null;             // 分析頁目前展開的分類
 let lastOpened = null;              // 最近開啟的紀錄（供「複製」使用）
 let lastSyncText = '';              // 最近一次同步的狀態文字
+let monthCache = [];                // 目前月份的紀錄（先載入，很快顯示）
+let allLoaded = false;              // 全部月份是否已在背景載入完成
+let monthSeq = 0, fullSeq = 0;      // 用來丟棄過期的回應
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -27,7 +30,13 @@ function sheetFromIso(iso) { const [y, m] = iso.split('-'); return `${y}/${parse
 function sheetOrder(s) { const m = s.match(/^(\d{4})\/(\d{1,2})/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; }
 function isoYM(sheet) { const m = sheet.match(/^(\d{4})\/(\d{1,2})/); return `${m[1]}-${pad(m[2])}`; }
 function lastDayIso(sheet) { const [y, m] = isoYM(sheet).split('-').map(Number); return `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`; }
-function monthRecords() { return all.filter(r => r.sheet === current); }
+function pool() { return allLoaded ? all : monthCache; }
+function monthRecords() { return pool().filter(r => r.sheet === current); }
+function isoFromDate(sheet, mmdd) {
+  const m = sheet.match(/^(\d{4})\/(\d{1,2})/);
+  const [mm, dd] = String(mmdd).split('/');
+  return `${m[1]}-${pad(m[2])}-${pad(dd)}`;
+}
 function typeOf(name) { const a = accounts.find(x => x.name === name); return (a && a.type) || '其他'; }
 
 // 依 key 分組加總，依金額由大到小排序
@@ -127,20 +136,44 @@ async function loadAccounts() {
   fillAccountSelects();
 }
 
+// 先載入目前月份（很快就能看到明細），再於背景載入全部月份（統計用）
 async function loadAll() {
-  setStatus('同步中…');
-  const d = await apiGet({ action: 'getAllRecords' });
-  all = d.records || [];
-  lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
-  setStatus(lastSyncText);
+  await loadMonthCache();
+  loadFull();
+}
+
+async function loadMonthCache() {
+  const seq = ++monthSeq;
+  setStatus(`載入 ${current} 中…`);
+  const d = await apiGet({ action: 'getAll', sheet: current });
+  if (seq !== monthSeq) return;
+  monthCache = (d.records || []).map(r => ({ ...r, sheet: current, iso: isoFromDate(current, r.date) }));
+  setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');
   renderCurrentTab();
+}
+
+async function loadFull() {
+  const seq = ++fullSeq;
+  setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');
+  try {
+    const d = await apiGet({ action: 'getAllRecords' });
+    if (seq !== fullSeq) return;
+    all = d.records || [];
+    allLoaded = true;
+    lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
+    setStatus(lastSyncText);
+    renderCurrentTab();
+  } catch (e) { handleError(e); }
 }
 
 async function switchMonth(sheet) {
   current = sheet;
   if (!months.includes(sheet)) months = [sheet, ...months].sort((a, b) => sheetOrder(b) - sheetOrder(a));
   fillMonthSelect();
-  renderCurrentTab();
+  if (allLoaded) renderCurrentTab();
+  else {
+    try { await loadMonthCache(); } catch (e) { handleError(e); }
+  }
 }
 
 // ── 分頁切換 ────────────────────────────────────────────────
@@ -154,11 +187,16 @@ function switchTab(name) {
   renderCurrentTab();
 }
 
+const LOADING_TARGET = { annual: 'yCats', assets: 'aAccounts' };
 function renderCurrentTab() {
-  if (!all.length && activeTab !== 'records') return;
-  if (activeTab === 'records') renderRecords();
-  else if (activeTab === 'analysis') renderAnalysis();
-  else if (activeTab === 'annual') renderAnnual();
+  if (activeTab === 'records') return renderRecords();
+  if (activeTab === 'analysis') return renderAnalysis();   // 只用本月資料，不需等全部載入
+  if (!allLoaded) {
+    const id = LOADING_TARGET[activeTab];
+    if (id) $(id).innerHTML = '<div class="empty">其他月份背景載入中，稍候會自動顯示…</div>';
+    return;
+  }
+  if (activeTab === 'annual') renderAnnual();
   else if (activeTab === 'assets') renderAssets();
 }
 
@@ -166,7 +204,7 @@ function renderCurrentTab() {
 function renderRecords() {
   const q = $('searchInput') ? $('searchInput').value.trim().toLowerCase() : '';
   if (q) return renderSearch(q);
-  if (lastSyncText) setStatus(lastSyncText);   // 離開搜尋時還原狀態列
+  setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');   // 離開搜尋時還原狀態列
   const recs = monthRecords();
   const inc = sum(recs, 'income');
   const exp = sum(recs, 'expense');
@@ -179,7 +217,7 @@ function renderRecords() {
 
 // 搜尋：跨所有月份，比對項目、分類、帳戶、轉入帳戶、備註、類型與金額
 function renderSearch(q) {
-  const hits = all.filter(r => [r.item, r.category, r.account, r.toAccount, r.note, r.type,
+  const hits = pool().filter(r => [r.item, r.category, r.account, r.toAccount, r.note, r.type,
     String(r.income || ''), String(r.expense || ''), String(r.transfer || '')]
     .join(' ').toLowerCase().includes(q));
   const inc = sum(hits, 'income');
@@ -189,7 +227,7 @@ function renderSearch(q) {
   $('sumBalance').textContent = money(inc - exp);
   $('sumTransfer').textContent = money(sum(hits, 'transfer'));
   const shown = hits.slice().sort((a, b) => (a.iso < b.iso ? 1 : -1)).slice(0, 300);
-  setStatus(`搜尋「${q}」：共 ${hits.length} 筆${hits.length > shown.length ? `（顯示前 ${shown.length} 筆）` : ''}`);
+  setStatus(`搜尋「${q}」：共 ${hits.length} 筆${hits.length > shown.length ? `（顯示前 ${shown.length} 筆）` : ''}${allLoaded ? '' : '（僅本月，其他月份載入中）'}`);
   renderList(shown, '找不到符合的紀錄');
 }
 
@@ -421,7 +459,7 @@ function openRecordModal(rec = null, asCopy = false) {
   $('recCategory').value = rec ? rec.category : '';
   $('recNote').value = rec ? rec.note : '';
   fillAccountSelects(rec ? { account: rec.account, toAccount: rec.toAccount } : {});
-  $('catList').innerHTML = [...new Set(all.map(r => r.category).filter(Boolean))]
+  $('catList').innerHTML = [...new Set(pool().map(r => r.category).filter(Boolean))]
     .map(c => `<option value="${esc(c)}"></option>`).join('');
   openModal('recModal');
 }
@@ -577,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('list').addEventListener('click', e => {
     const btn = e.target.closest('.rec');
     if (!btn) return;
-    const rec = all.find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
+    const rec = pool().find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
     if (rec) openRecordModal(rec);
   });
   $('anaCats').addEventListener('click', e => {
@@ -589,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('anaDetail').addEventListener('click', e => {
     const btn = e.target.closest('.rec');
     if (!btn) return;
-    const rec = all.find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
+    const rec = pool().find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
     if (rec) openRecordModal(rec);
   });
 
