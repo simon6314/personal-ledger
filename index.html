@@ -2,11 +2,12 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
+  <meta name="color-scheme" content="light">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>我的帳本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026111000">
+  <link rel="stylesheet" href="style.css?v=2026111001">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -83,7 +84,9 @@
     </section>
     <p class="hint">「截至今天」不含未來日期的紀錄，和 Money App 的數字一致；「含未來日期」會把已記錄但還沒發生的交易也算進去。</p>
     <h3 class="section-title">淨值走勢（每月底）</h3>
-    <div class="chart-box"><canvas id="netChart"></canvas></div>
+    <div class="net-head"><span>📍 本月底淨值（截至今天）</span><strong id="netCur">-</strong></div>
+    <div class="chart-box chart-scroll" id="netScroll"><div class="chart-inner" id="netInner"><canvas id="netChart"></canvas></div></div>
+    <p class="hint">👈 左右滑動可以看其他月份</p>
     <h3 class="section-title">各帳戶餘額（左：截至今天，右：含未來日期）</h3>
     <div id="aAccounts"></div>
   </section>
@@ -184,6 +187,6 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111000"></script>
+<script src="app.js?v=2026111001"></script>
 </body>
 </html>

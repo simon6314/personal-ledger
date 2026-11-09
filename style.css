@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7fb;
   --panel: #ffffff;
   --text: #2a2d3a;
@@ -13,34 +14,8 @@
   --radius: 14px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #15161d;
-    --panel: #1f2030;
-    --text: #eceef7;
-    --muted: #9298ad;
-    --line: #2e3044;
-    --primary: #8b97ff;
-    --primary-soft: #2a2d4a;
-    --in: #46d39a;
-    --out: #ff7b8c;
-    --tr: #a3a9bf;
-    --danger: #ff7b8c;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #15161d;
-  --panel: #1f2030;
-  --text: #eceef7;
-  --muted: #9298ad;
-  --line: #2e3044;
-  --primary: #8b97ff;
-  --primary-soft: #2a2d4a;
-  --in: #46d39a;
-  --out: #ff7b8c;
-  --tr: #a3a9bf;
-  --danger: #ff7b8c;
-}
+
+
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -254,18 +229,8 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 16px; }
   --radius: 18px;
   --grad: linear-gradient(135deg, #22d3ee 0%, #f472b6 55%, #fbbf24 100%);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #1a1033; --panel: rgba(40,30,72,0.88); --text: #f5f3ff; --muted: #b3acd9;
-    --line: #4a3a7a; --primary: #f9a8d4; --primary-soft: #3b2355;
-    --in: #5eead4; --out: #fda4af; --tr: #c4b5fd; --danger: #fda4af;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #1a1033; --panel: rgba(40,30,72,0.88); --text: #f5f3ff; --muted: #b3acd9;
-  --line: #4a3a7a; --primary: #f9a8d4; --primary-soft: #3b2355;
-  --in: #5eead4; --out: #fda4af; --tr: #c4b5fd; --danger: #fda4af;
-}
+
+
 
 body {
   background:
@@ -294,10 +259,8 @@ body {
   padding: 14px 16px 12px;
   box-shadow: 0 6px 20px rgba(244,114,182,0.08);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .top { background: rgba(26,16,51,0.7); }
-}
-:root[data-theme="dark"] .top { background: rgba(26,16,51,0.7); }
+
+
 .top h1 {
   font-size: 22px; font-weight: 700;
   background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -385,3 +348,10 @@ main { position: relative; z-index: 1; }
 .seg button { border-radius: 12px; }
 .seg button.active { background: var(--grad); color: #1e1b4b; font-weight: 700; box-shadow: none; }
 .toast { border-radius: 999px; background: var(--grad); color: #1e1b4b; font-weight: 700; }
+
+/* 淨值走勢：可左右滑動 */
+.net-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 6px 4px 8px; }
+.net-head span { font-size: 14px; color: var(--muted); }
+.net-head strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart-inner { position: relative; height: 100%; min-width: 100%; }

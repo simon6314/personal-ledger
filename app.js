@@ -469,21 +469,51 @@ function renderAssets() {
   const seriesToday = ascMonths.map(m => isoYM(m) <= thisYM
     ? sumOf(balancesAsOf(isoYM(m) === thisYM ? today : lastDayIso(m))) : null);
   const seriesAll = ascMonths.map(m => sumOf(balancesAsOf(lastDayIso(m))));
+  // 本月底數字（截至今天）與可左右滑動的圖表寬度
+  const curIdx = ascMonths.findIndex(m => isoYM(m) === thisYM);
+  const curVal = curIdx >= 0 ? seriesToday[curIdx] : null;
+  $('netCur').textContent = curVal == null ? '-' : money(curVal);
+  $('netCur').className = curVal != null && curVal < 0 ? 'out' : 'in';
+  if ($('netInner')) $('netInner').style.width = Math.max(ascMonths.length * 68, 320) + 'px';
+  const compact = v => Math.abs(v) >= 10000 ? (v / 10000).toFixed(1).replace(/\.0$/, '') + '萬' : Math.round(v).toLocaleString('zh-TW');
+  const valueLabels = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart) {
+      const ds = chart.data.datasets[0];
+      const meta = chart.getDatasetMeta(0);
+      const c = chart.ctx;
+      c.save();
+      c.font = '600 11px "Noto Sans TC", sans-serif';
+      c.textAlign = 'center';
+      c.fillStyle = getComputedStyle(document.body).color;
+      meta.data.forEach((pt, i) => {
+        const v = ds.data[i];
+        if (v == null) return;
+        c.fillText(compact(v), pt.x, pt.y - 10);
+      });
+      c.restore();
+    }
+  };
   drawChart('netChart', {
     type: 'line',
+    plugins: [valueLabels],
     data: {
       labels: ascMonths.map(m => m.replace('/', '.').replace('月', '')),
       datasets: [
-        { label: '截至今天', data: seriesToday, borderColor: '#5b6cf0', backgroundColor: 'rgba(91,108,240,.12)', fill: true, tension: .25, pointRadius: 2, spanGaps: false },
-        { label: '含未來日期', data: seriesAll, borderColor: '#f0a35b', borderDash: [6, 4], fill: false, tension: .25, pointRadius: 2 }
+        { label: '截至今天', data: seriesToday, borderColor: '#db2777', backgroundColor: 'rgba(219,39,119,.12)', fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: '#db2777', spanGaps: false },
+        { label: '含未來日期', data: seriesAll, borderColor: '#0e9f9f', borderDash: [6, 4], fill: false, tension: .3, pointRadius: 3 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 18, right: 14, left: 6 } },
       plugins: { legend: { display: true, labels: { font: { size: 12 } } } },
-      scales: { y: { ticks: { callback: v => Number(v).toLocaleString('zh-TW') } } }
+      scales: { y: { ticks: { callback: v => Number(v).toLocaleString('zh-TW') } }, x: { ticks: { font: { size: 12 } } } }
     }
   });
+  // 預設捲到最右邊（最新月份）
+  const sc = $('netScroll');
+  if (sc) sc.scrollLeft = sc.scrollWidth;
 }
 
 // ── Chart.js 包裝（CDN 載入失敗時不影響其他功能）──────────────
