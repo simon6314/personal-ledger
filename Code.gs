@@ -197,6 +197,35 @@ function importFromSheet() {
   Logger.log('匯入完成：' + Object.keys(groups).length + ' 個月份，共 ' + count + ' 筆');
 }
 
+// ── 補匯入：只把「項目空白」的列從「匯入」分頁補進月份分頁（上次匯入時這些列被略過）
+//    只需執行一次；執行後請勿重複執行，否則會重複寫入
+function importBlankItemRows() {
+  const src = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(IMPORT_SHEET);
+  if (!src) throw new Error('找不到「' + IMPORT_SHEET + '」分頁');
+  const values = src.getDataRange().getValues();
+  const groups = {};
+  let count = 0;
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[0] || r[1]) continue;          // 只要項目空白、日期有值的列
+    const dateKey = r[0] instanceof Date
+      ? r[0].getFullYear() + '-' + (r[0].getMonth() + 1) + '-' + r[0].getDate()
+      : r[0];
+    const name = monthSheetName_(dateKey);
+    (groups[name] = groups[name] || []).push(recordToRow_({
+      date: r[0], item: '', income: r[2], expense: r[3], transfer: r[4],
+      account: r[5], toAccount: r[6], category: r[7], note: r[8], type: r[9]
+    }));
+    count++;
+  }
+  Object.keys(groups).forEach(name => {
+    const sh = getMonthSheet_(name, true);
+    const rows = groups[name];
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.length).setValues(rows);
+  });
+  Logger.log('補匯入完成：' + Object.keys(groups).length + ' 個月份，共 ' + count + ' 筆');
+}
+
 // ── 帳戶清單（分頁「帳戶」：名稱、類型）────────────────────────────
 function accountSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
