@@ -242,12 +242,12 @@ body {
 }
 
 /* 飄落圖示 */
-.particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.particles { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
 .particle { position: absolute; top: -40px; opacity: 0; animation: fallFun linear infinite; }
 @keyframes fallFun {
   0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-  10% { opacity: 0.3; }
-  90% { opacity: 0.22; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.5; }
   100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
 }
 
