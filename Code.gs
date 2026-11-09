@@ -8,6 +8,11 @@ const HEADERS = ['日期', '項目', '收入', '支出', '轉帳金額', '帳戶
 const IMPORT_SHEET = '匯入';   // 把 CSV 匯入到這個分頁後，執行 importFromSheet()
 const COL = { date: 0, item: 1, income: 2, expense: 3, transfer: 4, account: 5, toAccount: 6, category: 7, note: 8, type: 9 };
 
+// 一列只要有日期或任何金額就算有資料（項目可以空白，例如部分收入）
+function hasData_(v) {
+  return !!(v[COL.date] || v[COL.item] || v[COL.income] || v[COL.expense] || v[COL.transfer]);
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -110,7 +115,7 @@ function doGet(e) {
     const values = sh.getDataRange().getValues();
     const records = [];
     for (let i = 1; i < values.length; i++) {
-      if (!values[i][COL.item]) continue;     // 沒有項目的列略過
+      if (!hasData_(values[i])) continue;     // 完全空白的列略過（項目可以是空的）
       records.push(rowToRecord_(values[i], i + 1));
     }
     return json_({ records });
@@ -272,7 +277,7 @@ function getAllRecords_() {
     if (!m || sh.getLastRow() < 2) return;
     const values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.length).getValues();
     values.forEach((v, i) => {
-      if (!v[COL.item]) return;
+      if (!hasData_(v)) return;
       const rec = rowToRecord_(v, i + 2);
       rec.sheet = name;
       rec.iso = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + rec.date.split('/')[1]).slice(-2);
