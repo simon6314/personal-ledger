@@ -271,7 +271,7 @@ function renderList(recs, emptyText = '這個月還沒有紀錄') {
   }).join('');
 }
 
-function rowHtml(r) {
+function rowHtml(r, withDate) {
   const isT = r.type === '轉帳';
   const amt = isT ? r.transfer : (r.income ? r.income : r.expense);
   const cls = isT ? 'tr' : (r.income ? 'in' : 'out');
@@ -280,10 +280,11 @@ function rowHtml(r) {
     ? `${esc(r.account)} → ${esc(r.toAccount)}`
     : `${esc(r.account)}${r.category ? ' · ' + esc(r.category) : ''}`;
   const note = r.note ? ' · ' + esc(r.note) : '';
+  const dateTxt = withDate ? esc(r.iso) + ' · ' : '';
   return `<button class="rec" data-sheet="${esc(r.sheet)}" data-row="${r.row}">
     <div class="rec-main">
       <div class="rec-item">${esc(r.item)}</div>
-      <div class="rec-sub">${sub}${note}</div>
+      <div class="rec-sub">${dateTxt}${sub}${note}</div>
     </div>
     <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
   </button>`;
@@ -318,7 +319,7 @@ function openAccountDetail(name) {
     <p class="hint">共 ${rel.length} 筆有關的紀錄${rel.length > 500 ? '（顯示前 500 筆）' : ''}</p>`;
   const shown = rel.slice(0, 500);
   $('accDetailList').innerHTML = shown.length
-    ? shown.map(rowHtml).join('')
+    ? shown.map(r => rowHtml(r, true)).join('')
     : '<div class="empty">這個帳戶還沒有紀錄</div>';
   openModal('accDetailModal');
 }
