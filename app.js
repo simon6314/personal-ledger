@@ -47,11 +47,18 @@ function forgetToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {
 
 class AuthError extends Error {}
 
+// 後端錯誤要明確顯示，避免把錯誤當成「沒有資料」
+function apiErrorMessage(d) {
+  if (d.error === 'bad action') return '後端版本過舊，請到 Apps Script 重新部署新版本';
+  return d.message || d.error;
+}
+
 async function apiGet(params) {
   const qs = new URLSearchParams({ ...params, token: getToken() });
   const res = await fetch(`${API}?${qs}`);
   const d = await res.json();
   if (d.error === 'unauthorized') throw new AuthError();
+  if (d.error) throw new Error(apiErrorMessage(d));
   return d;
 }
 
@@ -63,7 +70,7 @@ async function apiPost(body) {
   });
   const d = await res.json();
   if (d.error === 'unauthorized') throw new AuthError();
-  if (d.error) throw new Error(d.message || d.error);
+  if (d.error) throw new Error(apiErrorMessage(d));
   return d;
 }
 
