@@ -368,42 +368,59 @@ function balancesAsOf(asOfIso) {
 
 function renderAssets() {
   const today = todayIso();
-  const bal = balancesAsOf(today);
-  const names = Object.keys(bal);
-  const net = names.reduce((s, n) => s + bal[n], 0);
-  const bank = names.filter(n => ['現金', '銀行'].includes(typeOf(n))).reduce((s, n) => s + bal[n], 0);
-  const card = names.filter(n => typeOf(n) === '信用卡').reduce((s, n) => s + bal[n], 0);
-  $('aNet').textContent = money(net);
-  $('aNet').className = net >= 0 ? 'in' : 'out';
-  $('aBank').textContent = money(bank);
-  $('aCard').textContent = money(card);
-  $('aCard').className = card < 0 ? 'out' : '';
+  const thisYM = today.slice(0, 7);
+  const balToday = balancesAsOf(today);
+  const balAll = balancesAsOf('9999-12-31');
+  const totals = (bal) => {
+    const names = Object.keys(bal);
+    return {
+      net: names.reduce((s, n) => s + bal[n], 0),
+      bank: names.filter(n => ['現金', '銀行'].includes(typeOf(n))).reduce((s, n) => s + bal[n], 0),
+      card: names.filter(n => typeOf(n) === '信用卡').reduce((s, n) => s + bal[n], 0)
+    };
+  };
+  const t = totals(balToday), a = totals(balAll);
+  $('aNet').textContent = money(t.net);
+  $('aNet').className = t.net >= 0 ? 'in' : 'out';
+  $('aNetAll').textContent = '含未來日期：' + money(a.net);
+  $('aBank').textContent = money(t.bank);
+  $('aBankAll').textContent = '含未來：' + money(a.bank);
+  $('aCard').textContent = money(t.card);
+  $('aCard').className = t.card < 0 ? 'out' : '';
+  $('aCardAll').textContent = '含未來：' + money(a.card);
 
-  $('aAccounts').innerHTML = TYPE_ORDER.map(t => {
-    const items = names.filter(n => typeOf(n) === t).sort((a, b) => bal[b] - bal[a]);
+  const names = Object.keys(balAll).concat(Object.keys(balToday)).filter((n, i, arr) => arr.indexOf(n) === i);
+  $('aAccounts').innerHTML = TYPE_ORDER.map(tp => {
+    const items = names.filter(n => typeOf(n) === tp).sort((x, y) => (balToday[y] || 0) - (balToday[x] || 0));
     if (!items.length) return '';
-    const subtotal = items.reduce((s, n) => s + bal[n], 0);
+    const subT = items.reduce((s, n) => s + (balToday[n] || 0), 0);
+    const subA = items.reduce((s, n) => s + (balAll[n] || 0), 0);
     return `<div class="acc-group">
-      <div class="acc-group-head"><span>${t}</span><b>${money(subtotal)}</b></div>
-      ${items.map(n => `<div class="acc-line"><span>${esc(n)}</span><b class="${bal[n] < 0 ? 'out' : ''}">${money(bal[n])}</b></div>`).join('')}
+      <div class="acc-group-head"><span>${tp}</span><span><b>${money(subT)}</b><small> ｜ 含未來 ${money(subA)}</small></span></div>
+      ${items.map(n => `<div class="acc-line"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
-  // 淨值走勢：每個月底的淨值（只到今天為止）
-  const thisYM = today.slice(0, 7);
-  const ascMonths = months.filter(m => isoYM(m) <= thisYM).sort((a, b) => sheetOrder(a) - sheetOrder(b));
-  const series = ascMonths.map(m => {
-    const asOf = isoYM(m) === thisYM ? today : lastDayIso(m);   // 當月只算到今天
-    const b = balancesAsOf(asOf);
-    return Object.values(b).reduce((s, v) => s + v, 0);
-  });
+  // 淨值走勢：實線＝截至今天，虛線＝含未來日期
+  const ascMonths = months.filter(m => m).slice().sort((x, y) => sheetOrder(x) - sheetOrder(y));
+  const sumOf = bal => Object.values(bal).reduce((x, v) => x + v, 0);
+  const seriesToday = ascMonths.map(m => isoYM(m) <= thisYM
+    ? sumOf(balancesAsOf(isoYM(m) === thisYM ? today : lastDayIso(m))) : null);
+  const seriesAll = ascMonths.map(m => sumOf(balancesAsOf(lastDayIso(m))));
   drawChart('netChart', {
     type: 'line',
     data: {
       labels: ascMonths.map(m => m.replace('/', '.').replace('月', '')),
-      datasets: [{ label: '淨值', data: series, borderColor: '#5b6cf0', backgroundColor: 'rgba(91,108,240,.15)', fill: true, tension: .25, pointRadius: 2 }]
+      datasets: [
+        { label: '截至今天', data: seriesToday, borderColor: '#5b6cf0', backgroundColor: 'rgba(91,108,240,.12)', fill: true, tension: .25, pointRadius: 2, spanGaps: false },
+        { label: '含未來日期', data: seriesAll, borderColor: '#f0a35b', borderDash: [6, 4], fill: false, tension: .25, pointRadius: 2 }
+      ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => Number(v).toLocaleString('zh-TW') } } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { font: { size: 12 } } } },
+      scales: { y: { ticks: { callback: v => Number(v).toLocaleString('zh-TW') } } }
+    }
   });
 }
 
