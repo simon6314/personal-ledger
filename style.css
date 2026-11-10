@@ -377,3 +377,6 @@ main { position: relative; z-index: 1; }
 .cat-detail > * { min-width: 0; max-width: 100%; }
 .cat-detail .rec { width: 100%; box-sizing: border-box; min-width: 0; }
 .cat-detail .rec-main { min-width: 0; flex: 1 1 auto; }
+
+/* 搜尋提示字縮小，避免被截斷 */
+#searchInput::placeholder { font-size: 13px; opacity: .8; }
