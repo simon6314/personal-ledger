@@ -215,28 +215,28 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 16px; }
 
 /* ── 活潑風格（參考共同帳本：漸層、圓角、飄落小圖示）──────────── */
 :root {
-  --bg: #fdf4ff;
+  --bg: #f1fbfa;
   --panel: rgba(255,255,255,0.86);
   --text: #1e1b4b;
   --muted: #6b6f8a;
-  --line: #f3d9ef;
-  --primary: #db2777;
-  --primary-soft: #fce7f3;
+  --line: #c9ece8;
+  --primary: #0a9396;
+  --primary-soft: #e0f7f5;
   --in: #0f766e;
   --out: #e11d48;
   --tr: #7c3aed;
   --danger: #e11d48;
   --radius: 18px;
-  --grad: linear-gradient(135deg, #22d3ee 0%, #f472b6 55%, #fbbf24 100%);
+  --grad: linear-gradient(135deg, #0abab5 0%, #81d8d0 55%, #d9f7f4 100%);
 }
 
 
 
 body {
   background:
-    radial-gradient(circle at 10% 0%, rgba(34,211,238,0.22), transparent 40%),
-    radial-gradient(circle at 90% 10%, rgba(244,114,182,0.22), transparent 40%),
-    radial-gradient(circle at 50% 100%, rgba(251,191,36,0.16), transparent 45%),
+    radial-gradient(circle at 10% 0%, rgba(10,186,181,0.22), transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(129,216,208,0.30), transparent 40%),
+    radial-gradient(circle at 50% 100%, rgba(10,186,181,0.14), transparent 45%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -257,7 +257,7 @@ body {
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   padding: 14px 16px 12px;
-  box-shadow: 0 6px 20px rgba(244,114,182,0.08);
+  box-shadow: 0 6px 20px rgba(10,186,181,0.08);
 }
 
 
@@ -272,7 +272,7 @@ body {
 .btn { border-radius: 14px; font-weight: 500; }
 .btn.primary {
   background: var(--grad); border: none; color: #1e1b4b; font-weight: 700;
-  box-shadow: 0 6px 16px rgba(244,114,182,0.35);
+  box-shadow: 0 6px 16px rgba(10,186,181,0.35);
 }
 .btn.primary:hover { filter: brightness(1.05); }
 .btn.danger { border-radius: 14px; }
@@ -282,7 +282,7 @@ main { position: relative; z-index: 1; }
 .card {
   border: none; border-radius: var(--radius);
   background: var(--panel);
-  box-shadow: 0 8px 22px rgba(244,114,182,0.12);
+  box-shadow: 0 8px 22px rgba(10,186,181,0.12);
   padding: 14px 16px; position: relative; overflow: hidden;
 }
 .card::after {
@@ -298,7 +298,7 @@ main { position: relative; z-index: 1; }
 .sync { border-radius: 999px; display: inline-block; padding: 3px 10px; background: var(--primary-soft); color: var(--text); }
 
 /* 搜尋 */
-.search input { border-radius: 999px; padding: 12px 18px; border: 2px solid var(--line); box-shadow: 0 4px 14px rgba(244,114,182,0.08); }
+.search input { border-radius: 999px; padding: 12px 18px; border: 2px solid var(--line); box-shadow: 0 4px 14px rgba(10,186,181,0.08); }
 .search input:focus { outline: none; border-color: var(--primary); }
 
 /* 日期標題：小膠囊 */
@@ -314,7 +314,7 @@ main { position: relative; z-index: 1; }
   box-shadow: 0 4px 14px rgba(15,23,42,0.05);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.rec:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(244,114,182,0.18); }
+.rec:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(10,186,181,0.18); }
 .rec-item { font-weight: 700; }
 .rec-amt { font-family: 'DM Mono', 'Noto Sans TC', monospace; font-size: 16px; }
 
@@ -326,15 +326,15 @@ main { position: relative; z-index: 1; }
 }
 .tab.active {
   background: var(--grad); border-color: transparent; color: #1e1b4b;
-  box-shadow: 0 6px 14px rgba(244,114,182,0.3);
+  box-shadow: 0 6px 14px rgba(10,186,181,0.3);
 }
 
 /* 分析 / 年度 / 財產 */
 .bar-row { border-radius: 16px; border: none; background: var(--panel); box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
-.bar-row.active { box-shadow: 0 0 0 2px var(--primary), 0 6px 16px rgba(244,114,182,0.2); }
+.bar-row.active { box-shadow: 0 0 0 2px var(--primary), 0 6px 16px rgba(10,186,181,0.2); }
 .bar i { background: var(--grad); }
-.chart-box { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 8px 22px rgba(244,114,182,0.1); }
-.acc-group { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 6px 18px rgba(244,114,182,0.1); }
+.chart-box { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 8px 22px rgba(10,186,181,0.1); }
+.acc-group { border: none; border-radius: var(--radius); background: var(--panel); box-shadow: 0 6px 18px rgba(10,186,181,0.1); }
 .acc-group-head { background: var(--primary-soft); color: var(--text); border-radius: var(--radius) var(--radius) 0 0; }
 .section-title { color: var(--primary); font-weight: 700; }
 .panel-head h2 { font-weight: 700; }

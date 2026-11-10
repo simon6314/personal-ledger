@@ -500,7 +500,7 @@ function renderAssets() {
     data: {
       labels: ascMonths.map(m => m.replace('/', '.').replace('月', '')),
       datasets: [
-        { label: '截至今天', data: seriesToday, borderColor: '#db2777', backgroundColor: 'rgba(219,39,119,.12)', fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: '#db2777', spanGaps: false },
+        { label: '截至今天', data: seriesToday, borderColor: '#0a9396', backgroundColor: 'rgba(10,147,150,.14)', fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: '#0a9396', spanGaps: false },
         { label: '含未來日期', data: seriesAll, borderColor: '#0e9f9f', borderDash: [6, 4], fill: false, tension: .3, pointRadius: 3 }
       ]
     },
