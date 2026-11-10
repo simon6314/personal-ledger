@@ -545,7 +545,8 @@ function renderAnnual() {
   renderDividendStats(yr);
 }
 
-// 年度股息統計：股息轉帳（毛額）、對應的手續費、實收，依股票帳戶分列
+// 年度股息統計：股息轉帳（毛額）、對應的手續費、實收，依股票帳戶分列，可展開細項
+let expandedDiv = null; // 目前展開的股票帳戶
 function renderDividendStats(yr) {
   const divs = mergeDividendFees(yr).filter(r => r.type === '轉帳' && /股息/.test(r.item || ''));
   const gross = sum(divs, 'transfer');
@@ -565,13 +566,21 @@ function renderDividendStats(yr) {
   });
   const rows = [...byAcc.entries()].sort((a, b) => b[1].gross - a[1].gross);
   const max = rows.length ? rows[0][1].gross : 0;
-  $('dStocks').innerHTML = rows.length ? rows.map(([name, o]) => `
-    <div class="bar-row static">
-      <span class="bar-name">${esc(name)}</span>
+  $('dStocks').innerHTML = rows.length ? rows.map(([name, o]) => {
+    const open = expandedDiv === name;
+    const detail = open
+      ? `<div class="cat-detail">${divs.filter(r => (r.account || '未指定') === name)
+          .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : b.row - a.row))
+          .map(r => rowHtml(r, true)).join('')}</div>`
+      : '';
+    return `
+    <div class="bar-row toggle${open ? ' active' : ''}" data-stock="${esc(name)}">
+      <span class="bar-name">${open ? '▾' : '▸'} ${esc(name)}</span>
       <span class="bar"><i style="width:${max ? (o.gross / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(o.gross - o.fee)}</b>
       <small>${o.count} 次・手續費 ${money(o.fee)}</small>
-    </div>`).join('') : '<div class="empty">這一年還沒有股息紀錄</div>';
+    </div>${detail}`;
+  }).join('') : '<div class="empty">這一年還沒有股息紀錄</div>';
 }
 
 // 展開某分類：列出這一年該分類的所有支出（新到舊）
@@ -1046,6 +1055,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelectorAll('.stat-card').forEach(card =>
     card.addEventListener('click', () => openStatModal(card.dataset.stat)));
+  $('dStocks').addEventListener('click', e => {
+    const rec = e.target.closest('.rec');
+    if (rec) {
+      const r = pool().find(x => x.sheet === rec.dataset.sheet && String(x.row) === rec.dataset.row);
+      if (r) openRecordModal(r);
+      return;
+    }
+    const head = e.target.closest('.bar-row[data-stock]');
+    if (!head) return;
+    const name = head.dataset.stock;
+    expandedDiv = expandedDiv === name ? null : name;
+    renderAnnual();
+  });
   $('aAccounts').addEventListener('click', e => {
     const line = e.target.closest('[data-acc]');
     if (line) openAccountDetail(line.dataset.acc);
