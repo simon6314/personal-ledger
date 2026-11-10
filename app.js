@@ -277,6 +277,7 @@ function renderRecords() {
   if (q) return renderSearch(q);
   setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');   // 離開搜尋時還原狀態列
   const recs = monthRecords();
+  summarySet = recs;
   const inc = sum(recs, 'income');
   const exp = sum(recs, 'expense');
   $('sumIncome').textContent = money(inc);
@@ -286,11 +287,43 @@ function renderRecords() {
   renderList(mergeDividendFees(recs));
 }
 
+// 點收入／支出卡片：顯示目前畫面範圍內的統計（月份或搜尋結果）
+let summarySet = [];
+function openStatModal(kind) {
+  const isInc = kind === 'income';
+  const key = isInc ? 'income' : 'expense';
+  const list = summarySet.filter(r => r[key] > 0);
+  const total = sum(list, key);
+  const count = list.length;
+  const avg = count ? total / count : 0;
+  const biggest = list.reduce((b, r) => (!b || r[key] > b[key] ? r : b), null);
+  const cats = groupSum(list, r => r.category || '未分類', key);
+  const max = cats.length ? cats[0][1] : 0;
+  $('statTitle').textContent = `${isInc ? '💚 收入' : '🧾 支出'}統計`;
+  $('statSum').innerHTML = `
+    <div class="acc-sum-grid">
+      <div><span>總額</span><b class="${isInc ? 'in' : 'out'}">${money(total)}</b></div>
+      <div><span>筆數</span><b>${count}</b></div>
+      <div><span>平均每筆</span><b>${money(Math.round(avg))}</b></div>
+      <div><span>最大一筆</span><b>${biggest ? money(biggest[key]) : '-'}</b></div>
+    </div>
+    ${biggest ? `<p class="hint">最大一筆：${esc(biggest.item)}（${esc(biggest.iso)}）</p>` : ''}`;
+  $('statList').innerHTML = cats.length ? cats.map(([name, v]) => `
+    <div class="bar-row static">
+      <span class="bar-name">${esc(catText(name))}</span>
+      <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
+      <b>${money(v)}</b>
+      <small>${total ? Math.round(v / total * 100) : 0}%</small>
+    </div>`).join('') : '<div class="empty">這個範圍內沒有' + (isInc ? '收入' : '支出') + '</div>';
+  openModal('statModal');
+}
+
 // 搜尋：跨所有月份，比對項目、分類、帳戶、轉入帳戶、備註、類型與金額
 function renderSearch(q) {
   const hits = pool().filter(r => [r.item, r.category, r.account, r.toAccount, r.note, r.type,
     String(r.income || ''), String(r.expense || ''), String(r.transfer || '')]
     .join(' ').toLowerCase().includes(q));
+  summarySet = hits;
   const inc = sum(hits, 'income');
   const exp = sum(hits, 'expense');
   $('sumIncome').textContent = money(inc);
@@ -961,6 +994,8 @@ document.addEventListener('DOMContentLoaded', () => {
     anaCategory = anaCategory === btn.dataset.cat ? null : btn.dataset.cat;
     renderAnalysis();
   });
+  document.querySelectorAll('.stat-card').forEach(card =>
+    card.addEventListener('click', () => openStatModal(card.dataset.stat)));
   $('aAccounts').addEventListener('click', e => {
     const line = e.target.closest('[data-acc]');
     if (line) openAccountDetail(line.dataset.acc);
