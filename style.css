@@ -355,3 +355,8 @@ main { position: relative; z-index: 1; }
 .net-head strong { font-size: 22px; font-variant-numeric: tabular-nums; }
 .chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .chart-inner { position: relative; height: 100%; min-width: 100%; }
+
+/* 年度分類展開 */
+.bar-row.toggle { cursor: pointer; }
+.cat-detail { margin: -4px 4px 14px; padding: 10px 8px 4px; border-radius: 0 0 16px 16px; background: var(--primary-soft); display: grid; gap: 8px; }
+.cat-detail-head { font-size: 13px; color: var(--muted); padding: 0 6px; }

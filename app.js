@@ -407,6 +407,7 @@ function yearsAvailable() {
   return [...ys].sort((a, b) => b - a);
 }
 
+let expandedCat = null; // 年度分類目前展開的分類名稱
 function renderAnnual() {
   const years = yearsAvailable();
   if (!$('yearSel').options.length) {
@@ -443,13 +444,28 @@ function renderAnnual() {
 
   const cats = groupSum(yr.filter(r => r.expense > 0), r => r.category || '未分類', 'expense');
   const max = cats.length ? cats[0][1] : 0;
-  $('yCats').innerHTML = cats.length ? cats.map(([name, v]) => `
-    <div class="bar-row static">
-      <span class="bar-name">${esc(catText(name))}</span>
+  $('yCats').innerHTML = cats.length ? cats.map(([name, v]) => {
+    const open = expandedCat === name;
+    const detail = open ? catDetailHtml(yr, name) : '';
+    return `
+    <div class="bar-row toggle${open ? ' active' : ''}" data-cat="${esc(name)}">
+      <span class="bar-name">${open ? '▾' : '▸'} ${esc(catText(name))}</span>
       <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(v)}</b>
       <small>${exp ? Math.round(v / exp * 100) : 0}%</small>
-    </div>`).join('') : '<div class="empty">這一年還沒有支出</div>';
+    </div>${detail}`;
+  }).join('') : '<div class="empty">這一年還沒有支出</div>';
+}
+
+// 展開某分類：列出這一年該分類的所有支出（新到舊）
+function catDetailHtml(yr, name) {
+  const rs = yr.filter(r => r.expense > 0 && (r.category || '未分類') === name)
+    .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : b.row - a.row));
+  const total = rs.reduce((x, r) => x + (Number(r.expense) || 0), 0);
+  return `<div class="cat-detail">
+    <div class="cat-detail-head">共 ${rs.length} 筆・${money(total)}</div>
+    ${rs.map(r => rowHtml(r, true)).join('') || '<div class="empty">沒有紀錄</div>'}
+  </div>`;
 }
 
 // ── 財產 ────────────────────────────────────────────────────
@@ -840,6 +856,19 @@ document.addEventListener('DOMContentLoaded', () => {
   $('recCategory').addEventListener('input', () => { if ($('recCategory').value.trim() !== autoCategory) autoCategory = ''; });
   $('monthSel').addEventListener('change', e => switchMonth(e.target.value));
   $('yearSel').addEventListener('change', renderAnnual);
+  $('yCats').addEventListener('click', e => {
+    const rec = e.target.closest('.rec');
+    if (rec) {
+      const r = pool().find(x => x.sheet === rec.dataset.sheet && String(x.row) === rec.dataset.row);
+      if (r) openRecordModal(r);
+      return;
+    }
+    const head = e.target.closest('.bar-row[data-cat]');
+    if (!head) return;
+    const name = head.dataset.cat;
+    expandedCat = expandedCat === name ? null : name;
+    renderAnnual();
+  });
   $('searchInput').addEventListener('input', renderRecords);
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
