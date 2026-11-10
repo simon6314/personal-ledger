@@ -436,7 +436,7 @@ function renderAnaDetail(exps) {
   const rows = exps.filter(r => (r.category || '未分類') === anaCategory);
   $('anaDetailTitle').textContent = `${anaCategory}（${rows.length} 筆）`;
   $('anaDetail').innerHTML = rows.length
-    ? rows.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map(rowHtml).join('')
+    ? rows.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map(r => rowHtml(r, true)).join('')
     : '<div class="empty">沒有紀錄</div>';
 }
 
