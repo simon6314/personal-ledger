@@ -606,11 +606,39 @@ function openRecordModal(rec = null, asCopy = false) {
   $('recAmount').value = rec ? (rec.type === '轉帳' ? rec.transfer : (rec.income || rec.expense)) : '';
   $('recItem').value = rec ? rec.item : '';
   $('recCategory').value = rec ? rec.category : '';
+  autoCategory = '';
   $('recNote').value = rec ? rec.note : '';
   fillAccountSelects(rec ? { account: rec.account, toAccount: rec.toAccount } : {});
   $('catList').innerHTML = [...new Set(pool().map(r => r.category).filter(Boolean))]
     .map(c => `<option value="${esc(c)}"></option>`).join('');
   openModal('recModal');
+}
+
+// 依項目名稱，從過去紀錄找出最常用的分類，自動帶入（分類欄位是空的或是自動帶入的才會換）
+let autoCategory = '';
+function suggestCategoryFor(item) {
+  const key = String(item || '').trim();
+  if (!key) return '';
+  const counts = {};
+  pool().forEach(r => {
+    if (r.item === key && r.category) counts[r.category] = (counts[r.category] || 0) + 1;
+  });
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return best ? best[0] : '';
+}
+function onItemInput() {
+  if (txType === '轉帳') return;
+  const cat = $('recCategory');
+  const current = cat.value.trim();
+  if (current && current !== autoCategory) return;   // 使用者自己填過，不覆蓋
+  const suggestion = suggestCategoryFor($('recItem').value);
+  if (suggestion) {
+    cat.value = suggestion;
+    autoCategory = suggestion;
+  } else if (current === autoCategory) {
+    cat.value = '';
+    autoCategory = '';
+  }
 }
 
 async function saveRecord(e) {
@@ -756,6 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
     openRecordModal(null);
   });
   $('btnSettings').addEventListener('click', openSettings);
+  $('recItem').addEventListener('input', onItemInput);
+  $('recCategory').addEventListener('input', () => { if ($('recCategory').value.trim() !== autoCategory) autoCategory = ''; });
   $('monthSel').addEventListener('change', e => switchMonth(e.target.value));
   $('yearSel').addEventListener('change', renderAnnual);
   $('searchInput').addEventListener('input', renderRecords);
