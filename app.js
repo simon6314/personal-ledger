@@ -363,8 +363,26 @@ function openAccountDetail(name) {
     </div>
     <p class="hint">共 ${rel.length} 筆有關的紀錄${rel.length > 500 ? '（顯示前 500 筆）' : ''}</p>`;
   const shown = mergeDividendFees(rel).slice(0, 500);
+  // 依月份分組，每月標題顯示該帳戶當月的淨變動（與餘額計算規則相同）
+  const deltaOf = r => {
+    if (r.type === '轉帳' || (r.transfer && !r.income && !r.expense)) {
+      return (r.account === name ? -(Number(r.transfer) || 0) : 0) + (r.toAccount === name ? (Number(r.transfer) || 0) : 0);
+    }
+    return r.account === name ? (Number(r.income) || 0) - (Number(r.expense) || 0) : 0;
+  };
+  const byMonth = new Map();
+  shown.forEach(r => {
+    const k = r.iso.slice(0, 7);
+    if (!byMonth.has(k)) byMonth.set(k, []);
+    byMonth.get(k).push(r);
+  });
   $('accDetailList').innerHTML = shown.length
-    ? shown.map(r => rowHtml(r, true)).join('')
+    ? [...byMonth.keys()].sort().reverse().map(k => {
+        const rs = byMonth.get(k);
+        const net = rs.reduce((x, r) => x + deltaOf(r), 0);
+        return `<div class="date-head acc-month-head">${k.replace('-', '年')}月 ｜ 淨變動 <b class="${net < 0 ? 'out' : 'in'}">${net < 0 ? '−' : '+'}${money(Math.abs(net))}</b> ｜ ${rs.length} 筆</div>`
+          + rs.map(r => rowHtml(r, true)).join('');
+      }).join('')
     : '<div class="empty">這個帳戶還沒有紀錄</div>';
   openModal('accDetailModal');
 }
