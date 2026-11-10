@@ -371,3 +371,9 @@ main { position: relative; z-index: 1; }
 
 /* 財產占比圓餅圖 */
 .pie-box { height: 260px; position: relative; }
+
+/* 展開明細不超出畫面：grid 子項可縮小，紀錄按鈕寬度限制在容器內 */
+.cat-detail { grid-template-columns: minmax(0, 1fr); }
+.cat-detail > * { min-width: 0; max-width: 100%; }
+.cat-detail .rec { width: 100%; box-sizing: border-box; min-width: 0; }
+.cat-detail .rec-main { min-width: 0; flex: 1 1 auto; }
