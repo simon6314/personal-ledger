@@ -514,6 +514,7 @@ function balancesAsOf(asOfIso) {
   return bal;
 }
 
+const PIE_COLORS = ['#0a9396', '#94d2bd', '#005f73', '#7fd6d8', '#3bb8b8', '#c4f1ee', '#2a7f86', '#a8e6e2'];
 function renderAssets() {
   const today = todayIso();
   const thisYM = today.slice(0, 7);
@@ -552,6 +553,25 @@ function renderAssets() {
       ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${['現金', '銀行'].includes(tp) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
+
+  // 現金與銀行占比圓餅圖（截至今天，只計正餘額）
+  const pieNames = bankNames.filter(n => (balToday[n] || 0) > 0);
+  const pieTotal = pieNames.reduce((s, n) => s + balToday[n], 0);
+  $('assetPieEmpty').classList.toggle('hidden', pieNames.length > 0);
+  drawChart('assetPie', {
+    type: 'doughnut',
+    data: {
+      labels: pieNames,
+      datasets: [{ data: pieNames.map(n => balToday[n]), backgroundColor: PIE_COLORS.slice(0, pieNames.length), borderWidth: 2, borderColor: '#ffffff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 13 } } },
+        tooltip: { callbacks: { label: c => `${c.label}：${money(c.raw)}（${pieTotal ? (c.raw / pieTotal * 100).toFixed(1) : 0}%）` } }
+      }
+    }
+  });
 
   // 淨值走勢：實線＝截至今天，虛線＝含未來日期
   const ascMonths = months.filter(m => m).slice().sort((x, y) => sheetOrder(x) - sheetOrder(y));

@@ -368,3 +368,6 @@ main { position: relative; z-index: 1; }
 .cmp-row span:not(.bar-name) { color: var(--muted); font-variant-numeric: tabular-nums; }
 .cmp-total { background: var(--primary-soft); font-weight: 600; }
 @media (max-width: 360px) { .cmp-row { grid-template-columns: 1fr 1fr; } .cmp-row .bar-name { grid-column: 1 / -1; } }
+
+/* 財產占比圓餅圖 */
+.pie-box { height: 260px; position: relative; }

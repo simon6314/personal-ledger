@@ -87,6 +87,9 @@
     <div class="net-head"><span>📍 本月底淨值（截至今天）</span><strong id="netCur">-</strong></div>
     <div class="chart-box chart-scroll" id="netScroll"><div class="chart-inner" id="netInner"><canvas id="netChart"></canvas></div></div>
     <p class="hint">👈 左右滑動可以看其他月份</p>
+    <h3 class="section-title">現金與銀行占比（截至今天）</h3>
+    <div class="chart-box pie-box"><canvas id="assetPie"></canvas></div>
+    <p id="assetPieEmpty" class="hint hidden">沒有正餘額的現金或銀行帳戶</p>
     <h3 class="section-title">各帳戶餘額（左：截至今天，右：含未來日期）</h3>
     <div id="aAccounts"></div>
   </section>
@@ -187,6 +190,6 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111014"></script>
+<script src="app.js?v=2026111015"></script>
 </body>
 </html>
