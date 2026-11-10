@@ -532,8 +532,8 @@ function renderAssets() {
   $('netCur').textContent = curVal == null ? '-' : money(curVal);
   $('netCur').className = curVal != null && curVal < 0 ? 'out' : 'in';
   if ($('netInner')) $('netInner').style.width = Math.max(ascMonths.length * 68, 320) + 'px';
-  // 依月增減上色：增加＝綠、減少＝紅、第一個月或無資料＝原本的青色
-  const UP = '#16a34a', DOWN = '#dc2626', BASE = '#0a9396';
+  // 依月增減上色（台灣習慣）：增加＝紅、減少＝綠、第一個月或無資料＝原本的青色
+  const UP = '#dc2626', DOWN = '#16a34a', BASE = '#0a9396';
   const trendColor = (series, i) => {
     if (i <= 0 || series[i] == null || series[i - 1] == null) return BASE;
     return series[i] >= series[i - 1] ? UP : DOWN;
