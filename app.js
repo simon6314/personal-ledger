@@ -44,6 +44,21 @@ function isoFromDate(sheet, mmdd) {
 function typeOf(name) { const a = accounts.find(x => x.name === name); return (a && a.type) || '其他'; }
 
 // 依 key 分組加總，依金額由大到小排序
+// ── 分類圖示（只影響顯示，資料仍是純文字分類名稱）─────────────────
+const CAT_ICON = {
+  '食物': '🍜', '超市&賣場': '🛒', '網購': '📦', '交通': '🚌', '紅利': '⭐', '回饋': '💸',
+  '存款利息': '🐷', '薪金': '💰', '津貼': '💵', '零用錢': '👛', '禮物': '🎁', '社交': '🥂',
+  '文化': '🎨', '健康': '🌿', '醫療': '💊', '保險': '🛡️', '美容': '💄', '服飾': '👗',
+  '家居': '🪑', '老家': '🏠', '新家': '🔑', '房子': '🏡', '租金': '🏘️', '稅費': '🏛️',
+  '手續費': '🪙', '教育': '📚', '樂透': '🎰', '其他': '🫧', '未分類': '📌'
+};
+function catText(name) {
+  if (!name) return '';
+  const base = String(name).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '').trim();
+  const icon = CAT_ICON[base];
+  return icon ? icon + ' ' + base : base;
+}
+
 function groupSum(list, keyFn, valKey) {
   const m = new Map();
   list.forEach(r => {
@@ -306,7 +321,7 @@ function rowHtml(r, withDate) {
   const sign = isT ? '⇄' : (r.income ? '+' : '−');
   const sub = isT
     ? `${esc(r.account)} → ${esc(r.toAccount)}`
-    : `${esc(r.account)}${r.category ? ' · ' + esc(r.category) : ''}`;
+    : `${esc(r.account)}${r.category ? ' · ' + esc(catText(r.category)) : ''}`;
   const feeTxt = r.fee ? ` · 手續費 ${esc(String(r.fee))}` : '';
   const note = r.note ? ' · ' + esc(r.note) : '';
   const dateTxt = withDate ? esc(r.iso) + ' · ' : '';
@@ -363,7 +378,7 @@ function renderAnalysis() {
   const max = cats.length ? cats[0][1] : 0;
   $('anaCats').innerHTML = cats.length ? cats.map(([name, v]) => `
     <button class="bar-row${anaCategory === name ? ' active' : ''}" data-cat="${esc(name)}">
-      <span class="bar-name">${esc(name)}</span>
+      <span class="bar-name">${esc(catText(name))}</span>
       <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(v)}</b>
       <small>${total ? Math.round(v / total * 100) : 0}%</small>
@@ -429,7 +444,7 @@ function renderAnnual() {
   const max = cats.length ? cats[0][1] : 0;
   $('yCats').innerHTML = cats.length ? cats.map(([name, v]) => `
     <div class="bar-row static">
-      <span class="bar-name">${esc(name)}</span>
+      <span class="bar-name">${esc(catText(name))}</span>
       <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(v)}</b>
       <small>${exp ? Math.round(v / exp * 100) : 0}%</small>
