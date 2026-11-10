@@ -325,10 +325,11 @@ function rowHtml(r, withDate) {
   const feeTxt = r.fee ? ` · 手續費 ${esc(String(r.fee))}` : '';
   const note = r.note ? ' · ' + esc(r.note) : '';
   const dateTxt = withDate ? esc(r.iso) + ' · ' : '';
+  const pendTxt = r.pending ? '⏳ 同步中 · ' : '';
   return `<button class="rec" data-sheet="${esc(r.sheet)}" data-row="${r.row}">
     <div class="rec-main">
       <div class="rec-item">${esc(r.item)}</div>
-      <div class="rec-sub">${dateTxt}${sub}${feeTxt}${note}</div>
+      <div class="rec-sub">${pendTxt}${dateTxt}${sub}${feeTxt}${note}</div>
     </div>
     <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
   </button>`;
@@ -596,6 +597,7 @@ function fillAccountSelects(acc = {}) {
 
 // asCopy：以這筆紀錄為範本建立新紀錄（日期改為今天，金額保留可再修改）
 function openRecordModal(rec = null, asCopy = false) {
+  if (rec && rec.pending) { toast('這筆還在同步，請稍等幾秒'); return; }
   lastOpened = rec;
   editing = asCopy ? null : rec;
   $('recTitle').textContent = asCopy ? '複製紀錄' : (rec ? '編輯紀錄' : '新增紀錄');
@@ -641,6 +643,38 @@ function onItemInput() {
   }
 }
 
+// 儲存成功後，先把紀錄放進畫面（不等整份資料重新載入）；背景再同步校正列號
+function makeLocalRecord(sheet, data, row) {
+  return {
+    sheet, row: row ?? null, pending: row == null,
+    iso: data.date, date: String(data.date).slice(5).replace('-', '/'),
+    item: data.item, income: Number(data.income) || 0, expense: Number(data.expense) || 0,
+    transfer: Number(data.transfer) || 0, account: data.account, toAccount: data.toAccount || '',
+    category: data.category || '', note: data.note || '', type: data.type
+  };
+}
+function applyLocalChange(sheet, data, editingRec) {
+  if (editingRec) {
+    const rec = makeLocalRecord(sheet, data, editingRec.row);
+    const same = r => r.sheet === editingRec.sheet && r.row === editingRec.row;
+    monthCache = monthCache.map(r => same(r) ? rec : r);
+    if (allLoaded) all = all.map(r => same(r) ? rec : r);
+  }
+  let rec = null;
+  if (!editingRec && sheet === current) {
+    rec = makeLocalRecord(sheet, data, null);
+    monthCache = [...monthCache, rec];
+    if (allLoaded) all = [...all, rec];
+  }
+  renderCurrentTab();
+  return rec;
+}
+function removeLocalRecord(rec) {
+  monthCache = monthCache.filter(r => r !== rec);
+  all = all.filter(r => r !== rec);
+  renderCurrentTab();
+}
+
 async function saveRecord(e) {
   e.preventDefault();
   const date = $('recDate').value;
@@ -673,17 +707,27 @@ async function saveRecord(e) {
   const btn = $('recSave');
   btn.disabled = true;
   try {
+    let needReloadNow = false;
     if (editing && editing.sheet === targetSheet) {
       await apiPost({ action: 'updateRecord', sheet: editing.sheet, row: editing.row, data: { ...data, expectedItem: editing.item } });
+      applyLocalChange(targetSheet, data, editing);
     } else {
-      // 換了月份：先刪舊列，再寫進新月份
-      if (editing) await apiPost({ action: 'delete', sheet: editing.sheet, row: editing.row });
-      await apiPost({ action: 'add', sheet: targetSheet, data });
+      // 換了月份：先刪舊列（列號會變，必須等重新載入），再寫進新月份
+      if (editing) { await apiPost({ action: 'delete', sheet: editing.sheet, row: editing.row }); needReloadNow = true; }
+      // 先顯示在畫面上（標示同步中），寫入失敗時再移除
+      const localRec = applyLocalChange(targetSheet, data, null);
+      try {
+        await apiPost({ action: 'add', sheet: targetSheet, data });
+      } catch (err) {
+        if (localRec) removeLocalRecord(localRec);
+        throw err;
+      }
     }
     closeModal('recModal');
     toast('已儲存 ✓');
     if (targetSheet !== current) await switchMonth(targetSheet);
-    await loadAll();
+    if (needReloadNow) await loadAll();
+    else loadAll().catch(handleError);   // 背景同步，不擋畫面
   } catch (err) {
     handleError(err);
     if (!(err instanceof AuthError)) loadAll().catch(() => {});
