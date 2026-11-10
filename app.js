@@ -310,7 +310,7 @@ function renderList(recs, emptyText = '這個月還沒有紀錄') {
   const dates = Object.keys(groups).sort().reverse();
   el.innerHTML = dates.map(date => {
     const rows = groups[date].slice().sort((a, b) => b.row - a.row);
-    return `<div class="date-head">${esc(date)}</div>` + rows.map(r => rowHtml(r, false)).join('');
+    return `<div class="date-head">${esc(date)}</div>` + rows.map(r => rowHtml(r, true)).join('');
   }).join('');
 }
 
