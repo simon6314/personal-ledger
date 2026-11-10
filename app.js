@@ -289,7 +289,10 @@ function renderRecords() {
 
 // 點收入／支出卡片：顯示目前畫面範圍內的統計（月份或搜尋結果）
 let summarySet = [];
+let statKind = 'expense';   // 統計彈窗目前的種類
+let statCat = null;         // 統計彈窗目前展開的分類
 function openStatModal(kind) {
+  if (kind !== statKind) statCat = null;
   const isInc = kind === 'income';
   const key = isInc ? 'income' : 'expense';
   const list = summarySet.filter(r => r[key] > 0);
@@ -299,6 +302,7 @@ function openStatModal(kind) {
   const biggest = list.reduce((b, r) => (!b || r[key] > b[key] ? r : b), null);
   const cats = groupSum(list, r => r.category || '未分類', key);
   const max = cats.length ? cats[0][1] : 0;
+  statKind = key;
   $('statTitle').textContent = `${isInc ? '💚 收入' : '🧾 支出'}統計`;
   $('statSum').innerHTML = `
     <div class="acc-sum-grid">
@@ -308,13 +312,16 @@ function openStatModal(kind) {
       <div><span>最大一筆</span><b>${biggest ? money(biggest[key]) : '-'}</b></div>
     </div>
     ${biggest ? `<p class="hint">最大一筆：${esc(biggest.item)}（${esc(biggest.iso)}）</p>` : ''}`;
-  $('statList').innerHTML = cats.length ? cats.map(([name, v]) => `
-    <div class="bar-row static">
-      <span class="bar-name">${esc(catText(name))}</span>
+  $('statList').innerHTML = cats.length ? cats.map(([name, v]) => {
+    const open = statCat === name;
+    return `
+    <div class="bar-row toggle${open ? ' active' : ''}" data-cat="${esc(name)}">
+      <span class="bar-name">${open ? '▾' : '▸'} ${esc(catText(name))}</span>
       <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(v)}</b>
       <small>${total ? Math.round(v / total * 100) : 0}%</small>
-    </div>`).join('') : '<div class="empty">這個範圍內沒有' + (isInc ? '收入' : '支出') + '</div>';
+    </div>${open ? catDetailHtml(list, name, key) : ''}`;
+  }).join('') : '<div class="empty">這個範圍內沒有' + (isInc ? '收入' : '支出') + '</div>';
   openModal('statModal');
 }
 
@@ -538,10 +545,10 @@ function renderAnnual() {
 }
 
 // 展開某分類：列出這一年該分類的所有支出（新到舊）
-function catDetailHtml(yr, name) {
-  const rs = yr.filter(r => r.expense > 0 && (r.category || '未分類') === name)
+function catDetailHtml(yr, name, key = 'expense') {
+  const rs = yr.filter(r => r[key] > 0 && (r.category || '未分類') === name)
     .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : b.row - a.row));
-  const total = rs.reduce((x, r) => x + (Number(r.expense) || 0), 0);
+  const total = rs.reduce((x, r) => x + (Number(r[key]) || 0), 0);
   return `<div class="cat-detail">
     <div class="cat-detail-head">共 ${rs.length} 筆・${money(total)}</div>
     ${rs.map(r => rowHtml(r, true)).join('') || '<div class="empty">沒有紀錄</div>'}
@@ -993,6 +1000,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!btn) return;
     anaCategory = anaCategory === btn.dataset.cat ? null : btn.dataset.cat;
     renderAnalysis();
+  });
+  $('statList').addEventListener('click', e => {
+    const rec = e.target.closest('.rec');
+    if (rec) {
+      const r = pool().find(x => x.sheet === rec.dataset.sheet && String(x.row) === rec.dataset.row);
+      if (r) { closeModal('statModal'); openRecordModal(r); }
+      return;
+    }
+    const head = e.target.closest('.bar-row[data-cat]');
+    if (!head) return;
+    const name = head.dataset.cat;
+    statCat = statCat === name ? null : name;
+    openStatModal(statKind === 'income' ? 'income' : 'expense');
   });
   document.querySelectorAll('.stat-card').forEach(card =>
     card.addEventListener('click', () => openStatModal(card.dataset.stat)));
