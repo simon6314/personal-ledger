@@ -516,6 +516,13 @@ function renderAssets() {
   $('netCur').textContent = curVal == null ? '-' : money(curVal);
   $('netCur').className = curVal != null && curVal < 0 ? 'out' : 'in';
   if ($('netInner')) $('netInner').style.width = Math.max(ascMonths.length * 68, 320) + 'px';
+  // 依月增減上色：增加＝綠、減少＝紅、第一個月或無資料＝原本的青色
+  const UP = '#16a34a', DOWN = '#dc2626', BASE = '#0a9396';
+  const trendColor = (series, i) => {
+    if (i <= 0 || series[i] == null || series[i - 1] == null) return BASE;
+    return series[i] >= series[i - 1] ? UP : DOWN;
+  };
+  const segColor = series => ({ segment: { borderColor: ctx => trendColor(series, ctx.p1DataIndex) } });
   const compact = v => Math.abs(v) >= 10000 ? (v / 10000).toFixed(1).replace(/\.0$/, '') + '萬' : Math.round(v).toLocaleString('zh-TW');
   const valueLabels = {
     id: 'valueLabels',
@@ -530,6 +537,7 @@ function renderAssets() {
       meta.data.forEach((pt, i) => {
         const v = ds.data[i];
         if (v == null) return;
+        c.fillStyle = trendColor(ds.data, i);
         c.fillText(compact(v), pt.x, pt.y - 10);
       });
       c.restore();
@@ -541,8 +549,8 @@ function renderAssets() {
     data: {
       labels: ascMonths.map(m => m.replace('/', '.').replace('月', '')),
       datasets: [
-        { label: '截至今天', data: seriesToday, borderColor: '#0a9396', backgroundColor: 'rgba(10,147,150,.14)', fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: '#0a9396', spanGaps: false },
-        { label: '含未來日期', data: seriesAll, borderColor: '#0e9f9f', borderDash: [6, 4], fill: false, tension: .3, pointRadius: 3 }
+        { label: '截至今天', data: seriesToday, borderColor: BASE, backgroundColor: 'rgba(10,147,150,.14)', fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: seriesToday.map((_, i) => trendColor(seriesToday, i)), pointBorderColor: seriesToday.map((_, i) => trendColor(seriesToday, i)), spanGaps: false, ...segColor(seriesToday) },
+        { label: '含未來日期', data: seriesAll, borderColor: BASE, borderDash: [6, 4], fill: false, tension: .3, pointRadius: 3, pointBackgroundColor: seriesAll.map((_, i) => trendColor(seriesAll, i)), pointBorderColor: seriesAll.map((_, i) => trendColor(seriesAll, i)), ...segColor(seriesAll) }
       ]
     },
     options: {
