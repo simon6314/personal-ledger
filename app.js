@@ -549,6 +549,10 @@ function renderAssets() {
   $('aCardAll').textContent = '含未來：' + money(a.card);
 
   const names = Object.keys(balAll).concat(Object.keys(balToday)).filter((n, i, arr) => arr.indexOf(n) === i);
+  // 現金與銀行各帳戶占「現金與銀行」合計的比例（截至今天）
+  const bankNames = names.filter(n => ['現金', '銀行'].includes(typeOf(n)));
+  const bankTotal = bankNames.reduce((s, n) => s + (balToday[n] || 0), 0);
+  const shareOf = n => bankTotal ? ((balToday[n] || 0) / bankTotal * 100).toFixed(1) + '%' : '-';
   $('aAccounts').innerHTML = TYPE_ORDER.map(tp => {
     const items = names.filter(n => typeOf(n) === tp).sort((x, y) => (balToday[y] || 0) - (balToday[x] || 0));
     if (!items.length) return '';
@@ -556,7 +560,7 @@ function renderAssets() {
     const subA = items.reduce((s, n) => s + (balAll[n] || 0), 0);
     return `<div class="acc-group">
       <div class="acc-group-head"><span>${tp}</span><span><b>${money(subT)}</b><small> ｜ 含未來 ${money(subA)}</small></span></div>
-      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}</small></span></div>`).join('')}
+      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${['現金', '銀行'].includes(tp) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
