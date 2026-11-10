@@ -233,6 +233,30 @@ function renderCurrentTab() {
 }
 
 // ── 明細 ────────────────────────────────────────────────────
+// 股息轉帳與同一天、同一帳戶的 Fees 手續費合併成一列顯示（只影響畫面，資料不變）
+function mergeDividendFees(list) {
+  const isFee = r => r.item === 'Fees' && Number(r.expense) > 0 && !r.transfer && !r.income;
+  const isDiv = r => r.type === '轉帳' && /股息/.test(r.item || '');
+  const divs = {};
+  list.forEach(r => { if (isDiv(r)) (divs[r.iso + '|' + r.account] = divs[r.iso + '|' + r.account] || []).push(r); });
+  const out = [];
+  const used = new Set();
+  const merged = {};
+  list.forEach(r => {
+    if (isFee(r)) {
+      const bucket = divs[r.iso + '|' + r.account] || [];
+      const target = bucket.find(d => !used.has(d.sheet + ':' + d.row));
+      if (target) {
+        used.add(target.sheet + ':' + target.row);
+        merged[target.sheet + ':' + target.row] = (merged[target.sheet + ':' + target.row] || 0) + Number(r.expense);
+        return;                       // 這筆手續費併入股息，不另外列出
+      }
+    }
+    out.push(r);
+  });
+  return out.map(r => merged[r.sheet + ':' + r.row] ? { ...r, fee: merged[r.sheet + ':' + r.row] } : r);
+}
+
 function renderRecords() {
   const q = $('searchInput') ? $('searchInput').value.trim().toLowerCase() : '';
   if (q) return renderSearch(q);
@@ -244,7 +268,7 @@ function renderRecords() {
   $('sumExpense').textContent = money(exp);
   $('sumBalance').textContent = money(inc - exp);
   $('sumTransfer').textContent = money(sum(recs, 'transfer'));
-  renderList(recs);
+  renderList(mergeDividendFees(recs));
 }
 
 // 搜尋：跨所有月份，比對項目、分類、帳戶、轉入帳戶、備註、類型與金額
@@ -283,12 +307,13 @@ function rowHtml(r, withDate) {
   const sub = isT
     ? `${esc(r.account)} → ${esc(r.toAccount)}`
     : `${esc(r.account)}${r.category ? ' · ' + esc(r.category) : ''}`;
+  const feeTxt = r.fee ? ` · 手續費 ${esc(String(r.fee))}` : '';
   const note = r.note ? ' · ' + esc(r.note) : '';
   const dateTxt = withDate ? esc(r.iso) + ' · ' : '';
   return `<button class="rec" data-sheet="${esc(r.sheet)}" data-row="${r.row}">
     <div class="rec-main">
       <div class="rec-item">${esc(r.item)}</div>
-      <div class="rec-sub">${dateTxt}${sub}${note}</div>
+      <div class="rec-sub">${dateTxt}${sub}${feeTxt}${note}</div>
     </div>
     <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
   </button>`;
@@ -321,7 +346,7 @@ function openAccountDetail(name) {
       <div><span>轉出</span><b>${money(tout)}</b></div>
     </div>
     <p class="hint">共 ${rel.length} 筆有關的紀錄${rel.length > 500 ? '（顯示前 500 筆）' : ''}</p>`;
-  const shown = rel.slice(0, 500);
+  const shown = mergeDividendFees(rel).slice(0, 500);
   $('accDetailList').innerHTML = shown.length
     ? shown.map(r => rowHtml(r, true)).join('')
     : '<div class="empty">這個帳戶還沒有紀錄</div>';
