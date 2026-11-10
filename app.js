@@ -377,14 +377,16 @@ function renderAnalysis() {
   $('anaTotal').textContent = money(total);
   const cats = groupSum(exps, r => r.category || '未分類', 'expense');
   const max = cats.length ? cats[0][1] : 0;
-  $('anaCats').innerHTML = cats.length ? cats.map(([name, v]) => `
-    <button class="bar-row${anaCategory === name ? ' active' : ''}" data-cat="${esc(name)}">
-      <span class="bar-name">${esc(catText(name))}</span>
+  $('anaCats').innerHTML = cats.length ? cats.map(([name, v]) => {
+    const open = anaCategory === name;
+    return `
+    <div class="bar-row toggle${open ? ' active' : ''}" data-cat="${esc(name)}">
+      <span class="bar-name">${open ? '▾' : '▸'} ${esc(catText(name))}</span>
       <span class="bar"><i style="width:${max ? (v / max * 100).toFixed(1) : 0}%"></i></span>
       <b>${money(v)}</b>
       <small>${total ? Math.round(v / total * 100) : 0}%</small>
-    </button>`).join('') : '<div class="empty">這個月還沒有支出</div>';
-  renderAnaDetail(exps);
+    </div>${open ? catDetailHtml(exps, name) : ''}`;
+  }).join('') : '<div class="empty">這個月還沒有支出</div>';
   renderMonthCompare(exps, total);
 }
 
@@ -425,19 +427,6 @@ function renderMonthCompare(curExps, curTotal) {
       ${diffHtml(curMap.get(n) || 0, prevMap.get(n) || 0)}
     </div>`).join('') || '<div class="empty">沒有支出可比較</div>'}
     ${note}`;
-}
-
-function renderAnaDetail(exps) {
-  if (!anaCategory) {
-    $('anaDetailTitle').textContent = '分類明細';
-    $('anaDetail').innerHTML = '<div class="empty">👆 點選上方分類，查看明細</div>';
-    return;
-  }
-  const rows = exps.filter(r => (r.category || '未分類') === anaCategory);
-  $('anaDetailTitle').textContent = `${anaCategory}（${rows.length} 筆）`;
-  $('anaDetail').innerHTML = rows.length
-    ? rows.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map(r => rowHtml(r, true)).join('')
-    : '<div class="empty">沒有紀錄</div>';
 }
 
 // ── 年度 ────────────────────────────────────────────────────
@@ -923,6 +912,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rec) openRecordModal(rec);
   });
   $('anaCats').addEventListener('click', e => {
+    const rec = e.target.closest('.rec');
+    if (rec) {
+      const r = pool().find(x => x.sheet === rec.dataset.sheet && String(x.row) === rec.dataset.row);
+      if (r) openRecordModal(r);
+      return;
+    }
     const btn = e.target.closest('[data-cat]');
     if (!btn) return;
     anaCategory = anaCategory === btn.dataset.cat ? null : btn.dataset.cat;
@@ -937,12 +932,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!btn) return;
     const rec = pool().find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
     if (rec) { closeModal('accDetailModal'); openRecordModal(rec); }
-  });
-  $('anaDetail').addEventListener('click', e => {
-    const btn = e.target.closest('.rec');
-    if (!btn) return;
-    const rec = pool().find(r => r.sheet === btn.dataset.sheet && String(r.row) === btn.dataset.row);
-    if (rec) openRecordModal(rec);
   });
 
   $('recType').addEventListener('click', e => {
