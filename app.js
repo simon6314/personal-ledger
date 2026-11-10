@@ -542,6 +542,36 @@ function renderAnnual() {
       <small>${exp ? Math.round(v / exp * 100) : 0}%</small>
     </div>${detail}`;
   }).join('') : '<div class="empty">這一年還沒有支出</div>';
+  renderDividendStats(yr);
+}
+
+// 年度股息統計：股息轉帳（毛額）、對應的手續費、實收，依股票帳戶分列
+function renderDividendStats(yr) {
+  const divs = mergeDividendFees(yr).filter(r => r.type === '轉帳' && /股息/.test(r.item || ''));
+  const gross = sum(divs, 'transfer');
+  const fee = divs.reduce((s, r) => s + (Number(r.fee) || 0), 0);
+  $('dGross').textContent = money(gross);
+  $('dFee').textContent = money(fee);
+  $('dNet').textContent = money(gross - fee);
+  $('dCount').textContent = `${divs.length} 次`;
+  const byAcc = new Map();
+  divs.forEach(r => {
+    const k = r.account || '未指定';
+    const o = byAcc.get(k) || { gross: 0, fee: 0, count: 0 };
+    o.gross += Number(r.transfer) || 0;
+    o.fee += Number(r.fee) || 0;
+    o.count++;
+    byAcc.set(k, o);
+  });
+  const rows = [...byAcc.entries()].sort((a, b) => b[1].gross - a[1].gross);
+  const max = rows.length ? rows[0][1].gross : 0;
+  $('dStocks').innerHTML = rows.length ? rows.map(([name, o]) => `
+    <div class="bar-row static">
+      <span class="bar-name">${esc(name)}</span>
+      <span class="bar"><i style="width:${max ? (o.gross / max * 100).toFixed(1) : 0}%"></i></span>
+      <b>${money(o.gross - o.fee)}</b>
+      <small>${o.count} 次・手續費 ${money(o.fee)}</small>
+    </div>`).join('') : '<div class="empty">這一年還沒有股息紀錄</div>';
 }
 
 // 展開某分類：列出這一年該分類的所有支出（新到舊）

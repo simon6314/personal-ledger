@@ -73,6 +73,14 @@
     <div class="chart-box"><canvas id="annualChart"></canvas></div>
     <h3 class="section-title">年度支出分類</h3>
     <div id="yCats" class="bars"></div>
+    <h3 class="section-title">股息統計（項目含「股息」的轉帳）</h3>
+    <section class="summary">
+      <div class="card"><span>股息（毛額）</span><strong id="dGross" class="in">-</strong></div>
+      <div class="card"><span>股息手續費</span><strong id="dFee" class="out">-</strong></div>
+      <div class="card"><span>實收股息</span><strong id="dNet">-</strong></div>
+      <div class="card"><span>入帳次數</span><strong id="dCount">-</strong></div>
+    </section>
+    <div id="dStocks" class="bars"></div>
   </section>
 
   <!-- 財產 -->
@@ -203,6 +211,6 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111021"></script>
+<script src="app.js?v=2026111022"></script>
 </body>
 </html>
