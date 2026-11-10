@@ -7,7 +7,7 @@
   <title>我的帳本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026111010">
+  <link rel="stylesheet" href="style.css?v=2026111012">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -40,7 +40,7 @@
     <section class="summary">
       <div class="card"><span>💚 收入</span><strong id="sumIncome" class="in">-</strong></div>
       <div class="card"><span>🧾 支出</span><strong id="sumExpense" class="out">-</strong></div>
-      <div class="card"><span>🐷 結餘</span><strong id="sumBalance">-</strong></div>
+      <div class="card"><span>🌟 結餘</span><strong id="sumBalance">-</strong></div>
       <div class="card"><span>🔁 轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
     </section>
     <div id="sync" class="sync">載入中…</div>
@@ -54,6 +54,8 @@
       <strong id="anaTotal" class="out">-</strong>
     </div>
     <div id="anaCats" class="bars"></div>
+    <h3 class="section-title">和上個月比較</h3>
+    <div id="anaCompare" class="cmp-list"></div>
     <h3 class="section-title" id="anaDetailTitle">分類明細</h3>
     <div id="anaDetail" class="list"><div class="empty">👆 點選上方分類，查看明細</div></div>
   </section>
@@ -187,6 +189,6 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111011"></script>
+<script src="app.js?v=2026111012"></script>
 </body>
 </html>

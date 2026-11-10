@@ -385,6 +385,46 @@ function renderAnalysis() {
       <small>${total ? Math.round(v / total * 100) : 0}%</small>
     </button>`).join('') : '<div class="empty">這個月還沒有支出</div>';
   renderAnaDetail(exps);
+  renderMonthCompare(exps, total);
+}
+
+// 本月 vs 上個月的支出分類比較（增加為紅、減少為綠）
+function renderMonthCompare(curExps, curTotal) {
+  const el = $('anaCompare');
+  if (!el) return;
+  const m = current.match(/^(\d{4})\/(\d{1,2})/);
+  if (!m) { el.innerHTML = ''; return; }
+  let y = Number(m[1]), mo = Number(m[2]) - 1;
+  if (mo === 0) { y -= 1; mo = 12; }
+  const prevYM = `${y}-${pad(mo)}`;
+  const prevExps = pool().filter(r => r.expense > 0 && r.iso.startsWith(prevYM + '-'));
+  const prevTotal = sum(prevExps, 'expense');
+  const curMap = new Map(groupSum(curExps, r => r.category || '未分類', 'expense'));
+  const prevMap = new Map(groupSum(prevExps, r => r.category || '未分類', 'expense'));
+  const names = [...new Set([...curMap.keys(), ...prevMap.keys()])]
+    .sort((a, b) => Math.max(curMap.get(b) || 0, prevMap.get(b) || 0) - Math.max(curMap.get(a) || 0, prevMap.get(a) || 0));
+  const diffHtml = (cur, prev) => {
+    const d = cur - prev;
+    if (d === 0) return '<b>持平</b>';
+    const pct = prev ? ` (${d > 0 ? '+' : '−'}${Math.round(Math.abs(d) / prev * 100)}%)` : '（新增）';
+    return `<b class="${d > 0 ? 'out' : 'in'}">${d > 0 ? '+' : '−'}${money(Math.abs(d))}${pct}</b>`;
+  };
+  const note = (!allLoaded && !prevExps.length) ? '<div class="hint">上個月資料還在載入中…</div>' : '';
+  el.innerHTML = `
+    <div class="cmp-row cmp-total">
+      <span class="bar-name">總支出</span>
+      <span>本月 ${money(curTotal)}</span>
+      <span>上月 ${money(prevTotal)}</span>
+      ${diffHtml(curTotal, prevTotal)}
+    </div>
+    ${names.map(n => `
+    <div class="cmp-row">
+      <span class="bar-name">${esc(catText(n))}</span>
+      <span>本月 ${money(curMap.get(n) || 0)}</span>
+      <span>上月 ${money(prevMap.get(n) || 0)}</span>
+      ${diffHtml(curMap.get(n) || 0, prevMap.get(n) || 0)}
+    </div>`).join('') || '<div class="empty">沒有支出可比較</div>'}
+    ${note}`;
 }
 
 function renderAnaDetail(exps) {

@@ -360,3 +360,11 @@ main { position: relative; z-index: 1; }
 .bar-row.toggle { cursor: pointer; }
 .cat-detail { margin: -4px 4px 14px; padding: 10px 8px 4px; border-radius: 0 0 16px 16px; background: var(--primary-soft); display: grid; gap: 8px; }
 .cat-detail-head { font-size: 13px; color: var(--muted); padding: 0 6px; }
+
+/* 月比較 */
+.cmp-list { display: grid; gap: 8px; margin-bottom: 8px; }
+.cmp-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.3fr; gap: 6px; align-items: center; background: var(--panel); border-radius: 14px; padding: 10px 12px; font-size: 13px; box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
+.cmp-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.cmp-row span:not(.bar-name) { color: var(--muted); font-variant-numeric: tabular-nums; }
+.cmp-total { background: var(--primary-soft); font-weight: 600; }
+@media (max-width: 360px) { .cmp-row { grid-template-columns: 1fr 1fr; } .cmp-row .bar-name { grid-column: 1 / -1; } }
