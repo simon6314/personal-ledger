@@ -555,7 +555,7 @@ function renderAssets() {
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
   // 現金與銀行占比圓餅圖（截至今天，只計正餘額）
-  const pieNames = bankNames.filter(n => (balToday[n] || 0) > 0);
+  const pieNames = bankNames.filter(n => (balToday[n] || 0) > 0).sort((x, y) => balToday[y] - balToday[x]);
   const pieTotal = pieNames.reduce((s, n) => s + balToday[n], 0);
   $('assetPieEmpty').classList.toggle('hidden', pieNames.length > 0);
   drawChart('assetPie', {
