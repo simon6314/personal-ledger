@@ -23,6 +23,16 @@ function checkToken_(token) {
 }
 
 // 2026-11-08 → 2026/11月
+// 月份版本號：寫入後更新，前端只重抓版本變動的月份
+function bumpVer_(sheetName) {
+  PropertiesService.getScriptProperties().setProperty('ver:' + sheetName, String(Date.now()));
+}
+function bumpAllVers_() {
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sh => {
+    if (/^\d{4}\/\d{1,2}月$/.test(sh.getName())) bumpVer_(sh.getName());
+  });
+}
+
 function monthSheetName_(dateStr) {
   const m = String(dateStr).match(/^(\d{4})-(\d{1,2})/);
   return m ? m[1] + '/' + parseInt(m[2], 10) + '月' : dateStr;
@@ -87,6 +97,14 @@ function doGet(e) {
   const p = e.parameter;
   if (!checkToken_(p.token)) return json_({ error: 'unauthorized' });
 
+  // 每個月分頁的版本號（寫入時更新），供前端判斷哪個月份需要重抓
+  if (p.action === 'getVersions') {
+    const props = PropertiesService.getScriptProperties().getProperties();
+    const versions = {};
+    Object.keys(props).forEach(k => { if (k.indexOf('ver:') === 0) versions[k.slice(4)] = props[k]; });
+    return json_({ versions });
+  }
+
   if (p.action === 'getSheets') {
     const names = SpreadsheetApp.getActiveSpreadsheet().getSheets()
       .map(s => s.getName()).filter(n => /^\d{4}\/\d{1,2}月$/.test(n));
@@ -137,12 +155,15 @@ function doPost(e) {
   const data = typeof body.data === 'string' ? JSON.parse(body.data) : (body.data || {});
 
   if (body.action === 'addAccount' || body.action === 'updateAccount' || body.action === 'deleteAccount') {
-    return json_(handleAccount_(body.action, body, data));
+    const res = handleAccount_(body.action, body, data);
+    if (!res.error && body.action !== 'addAccount') bumpAllVers_();   // 改名／刪除會影響所有月份的交易
+    return json_(res);
   }
 
   if (body.action === 'add') {
     const sh = getMonthSheet_(body.sheet || monthSheetName_(data.date), true);
     sh.appendRow(recordToRow_(data));
+    bumpVer_(sh.getName());
     return json_({ ok: true });
   }
 
@@ -157,11 +178,13 @@ function doPost(e) {
       return json_({ error: 'conflict', message: '這一列已被改動，請重新整理' });
     }
     sh.getRange(row, 1, 1, HEADERS.length).setValues([recordToRow_(data)]);
+    bumpVer_(sh.getName());
     return json_({ ok: true });
   }
 
   if (body.action === 'delete') {
     sh.deleteRow(row);
+    bumpVer_(sh.getName());
     return json_({ ok: true });
   }
 

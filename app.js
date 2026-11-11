@@ -14,7 +14,8 @@ let anaCategory = null;             // 分析頁目前展開的分類
 let lastOpened = null;              // 最近開啟的紀錄（供「複製」使用）
 let lastSyncText = '';              // 最近一次同步的狀態文字
 let monthCache = [];                // 目前月份的紀錄（先載入，很快顯示）
-let allLoaded = false;              // 全部月份是否已在背景載入完成
+let monthData = {};                 // 月份分頁 → 紀錄陣列（已載入的月份）
+let allLoaded = false;              // 全部月份是否都已載入
 let monthSeq = 0, fullSeq = 0;      // 用來丟棄過期的回應
 
 const $ = id => document.getElementById(id);
@@ -30,7 +31,7 @@ function sheetFromIso(iso) { const [y, m] = iso.split('-'); return `${y}/${parse
 function sheetOrder(s) { const m = s.match(/^(\d{4})\/(\d{1,2})/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; }
 function isoYM(sheet) { const m = sheet.match(/^(\d{4})\/(\d{1,2})/); return `${m[1]}-${pad(m[2])}`; }
 function lastDayIso(sheet) { const [y, m] = isoYM(sheet).split('-').map(Number); return `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`; }
-function pool() { return allLoaded ? all : monthCache; }
+function pool() { return all; }   // all = 已載入的所有月份（載入中會逐月增加）
 function monthRecords() { return pool().filter(r => r.sheet === current); }
 // 把後端回傳的紀錄統一補上正確的 iso（YYYY-MM-DD）；舊快取或後端 iso 錯誤時以此修正
 function fixRecords(list) {
@@ -74,16 +75,21 @@ function saveToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) { 
 function forgetToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } clearCache(); }
 
 // ── 本機快取（只存在這台裝置，清除存取碼時一併清除）──────────────
-const CACHE_KEY = 'personal_ledger_cache_v1';
-function saveCache() {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 1, ts: Date.now(), months, accounts, all })); }
-  catch (e) { /* 空間不足或無法使用時略過，不影響正常運作 */ }
+// 每個月份各自一份快取，附上後端版本號；版本沒變就不用重抓
+const META_KEY = 'pl_meta_v2';
+const MONTH_PREFIX = 'pl_m2:';
+const MONTH_TTL_MS = 24 * 3600 * 1000;   // 超過一天就重抓（防止直接在試算表改的資料沒被發現）
+function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+function writeJson(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* 空間不足時略過 */ } }
+function saveMeta() { writeJson(META_KEY, { ts: Date.now(), months, accounts }); }
+function readMonthCache(sheet) { const c = readJson(MONTH_PREFIX + sheet); return c && Array.isArray(c.records) ? c : null; }
+function clearCache() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k === META_KEY || k === 'personal_ledger_cache_v1' || k.startsWith(MONTH_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+  } catch (e) { /* ignore */ }
 }
-function loadCache() {
-  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return c && c.v === 1 ? c : null; }
-  catch (e) { return null; }
-}
-function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch (e) { /* ignore */ } }
 
 class AuthError extends Error {}
 
@@ -141,29 +147,27 @@ function handleError(e) {
 
 async function init() {
   if (!getToken()) return openTokenModal();
+  try { localStorage.removeItem('personal_ledger_cache_v1'); } catch (e) { /* ignore */ }   // 舊版快取
   // 先用快取立即顯示，再到網路上更新
-  const c = loadCache();
-  if (c) {
-    months = Array.isArray(c.months) ? c.months : [];
-    accounts = Array.isArray(c.accounts) ? c.accounts : [];
-    all = Array.isArray(c.all) ? fixRecords(c.all) : [];
-    allLoaded = Array.isArray(c.all);
+  const meta = readJson(META_KEY);
+  if (meta && Array.isArray(meta.months)) {
+    months = meta.months;
+    accounts = Array.isArray(meta.accounts) ? meta.accounts : [];
+    months.forEach(m => { const c = readMonthCache(m); if (c) monthData[m] = c.records; });
     if (months.length) fillMonthSelect();
     fillAccountSelects();
-    lastSyncText = '快取 · ' + new Date(c.ts).toLocaleString('zh-TW');
-    setStatus(lastSyncText + '（更新中…）');
+    rebuildAll();
+    if (Object.keys(monthData).length) {
+      lastSyncText = '快取 · ' + new Date(meta.ts).toLocaleString('zh-TW');
+      setStatus(lastSyncText + '（更新中…）');
+    }
     renderCurrentTab();
   }
   try {
     await loadMonths();
     await loadAccounts();
-    await loadAll();
+    await syncAll();
   } catch (e) { handleError(e); }
-}
-
-function fillMonthSelect() {
-  $('monthSel').innerHTML = months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-  $('monthSel').value = current;
 }
 
 async function loadMonths() {
@@ -172,56 +176,112 @@ async function loadMonths() {
   set.add(currentSheetName());
   months = [...set].sort((a, b) => sheetOrder(b) - sheetOrder(a));
   fillMonthSelect();
-  saveCache();
+  rebuildAll();
+  saveMeta();
 }
 
 async function loadAccounts() {
   const d = await apiGet({ action: 'getAccounts' });
   accounts = d.accounts || [];
   fillAccountSelects();
-  saveCache();
+  saveMeta();
 }
 
-// 先載入目前月份（很快就能看到明細），再於背景載入全部月份（統計用）
-async function loadAll() {
-  await loadMonthCache();
-  loadFull();
+
+function fillMonthSelect() {
+  $('monthSel').innerHTML = months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  $('monthSel').value = current;
 }
 
-async function loadMonthCache() {
+// 把某個月份的紀錄放進記憶體，並更新「全部紀錄」與「目前月份」
+function setMonth(sheet, records, ver) {
+  monthData[sheet] = records;
+  if (ver !== undefined) writeJson(MONTH_PREFIX + sheet, { ts: Date.now(), ver, records });
+  rebuildAll();
+}
+function rebuildAll() {
+  all = Object.values(monthData).flat();
+  monthCache = monthData[current] || [];
+  allLoaded = months.length > 0 && months.every(m => Array.isArray(monthData[m]));
+}
+function monthRowsFrom(sheet, d) {
+  return (d.records || []).map(r => ({ ...r, sheet, iso: isoFromDate(sheet, r.date) }));
+}
+
+// 只載入一個月份（切換月份時用）
+async function loadMonth(sheet) {
   const seq = ++monthSeq;
-  setStatus(`載入 ${current} 中…`);
-  const d = await apiGet({ action: 'getAll', sheet: current });
+  setStatus(`載入 ${sheet} 中…`);
+  const d = await apiGet({ action: 'getAll', sheet });
   if (seq !== monthSeq) return;
-  monthCache = (d.records || []).map(r => ({ ...r, sheet: current, iso: isoFromDate(current, r.date) }));
-  // 全部紀錄已載入時，也要立刻用最新的當月資料取代 all 裡的當月部分（不必等所有月份載完，待同步標籤才會消失）
-  if (allLoaded) all = all.filter(r => r.sheet !== current).concat(monthCache);
+  setMonth(sheet, monthRowsFrom(sheet, d));   // 不寫入快取（版本未知），下次同步時再處理
   setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');
   renderCurrentTab();
 }
 
-async function loadFull() {
+// 同步：先取得各月份版本，只重抓「目前月份」與版本已變動的月份；其餘直接用快取
+async function syncAll() {
   const seq = ++fullSeq;
-  setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');
-  try {
-    const d = await apiGet({ action: 'getAllRecords' });
-    if (seq !== fullSeq) return;
-    all = fixRecords(d.records);
-    allLoaded = true;
+  const cur = current;
+  let vers = null;
+  try { vers = (await apiGet({ action: 'getVersions' })).versions || {}; }
+  catch (e) { if (e instanceof AuthError) throw e; vers = null; }   // 後端尚未更新時，退回每次都重抓
+  const now = Date.now();
+  const needs = months.filter(m => {
+    if (m === cur) return true;
+    const c = readMonthCache(m);
+    if (!c || !Array.isArray(monthData[m])) return true;
+    if (vers === null || now - (c.ts || 0) > MONTH_TTL_MS) return true;
+    return String(vers[m] || '0') !== String(c.ver ?? '0');
+  }).sort((a, b) => (a === cur ? -1 : b === cur ? 1 : sheetOrder(b) - sheetOrder(a)));
+
+  Object.keys(monthData).forEach(m => { if (!months.includes(m)) delete monthData[m]; });
+  rebuildAll();
+  renderCurrentTab();
+  setStatus(needs.length ? `同步中：更新 ${needs.length} 個月份…` : '已是最新，正在顯示快取內容');
+
+  const failed = [];
+  await runLimited(needs, 4, async m => {
+    try {
+      const d = await apiGet({ action: 'getAll', sheet: m });
+      if (seq !== fullSeq) return;
+      setMonth(m, monthRowsFrom(m, d), vers === null ? null : String(vers[m] || '0'));
+      renderCurrentTab();
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      failed.push(e);
+    }
+  });
+  if (seq !== fullSeq) return;
+  saveMeta();
+  if (failed.length) handleError(failed[0]);
+  else {
     lastSyncText = '已同步 · ' + new Date().toLocaleTimeString('zh-TW');
     setStatus(lastSyncText);
-    saveCache();
-    renderCurrentTab();
-  } catch (e) { handleError(e); }
+  }
+  renderCurrentTab();
 }
+
+// 最多同時 limit 個請求
+async function runLimited(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const it = items[i++]; await fn(it); }
+  });
+  await Promise.all(workers);
+}
+
+// 儲存或刪除後呼叫：版本有變的月份會被重抓
+async function loadAll() { return syncAll(); }
 
 async function switchMonth(sheet) {
   current = sheet;
   if (!months.includes(sheet)) months = [sheet, ...months].sort((a, b) => sheetOrder(b) - sheetOrder(a));
   fillMonthSelect();
-  if (allLoaded) renderCurrentTab();
+  rebuildAll();
+  if (Array.isArray(monthData[sheet])) renderCurrentTab();
   else {
-    try { await loadMonthCache(); } catch (e) { handleError(e); }
+    try { await loadMonth(sheet); } catch (e) { handleError(e); }
   }
 }
 
@@ -830,24 +890,23 @@ function makeLocalRecord(sheet, data, row) {
   };
 }
 function applyLocalChange(sheet, data, editingRec) {
-  if (editingRec) {
-    const rec = makeLocalRecord(sheet, data, editingRec.row);
-    const same = r => r.sheet === editingRec.sheet && r.row === editingRec.row;
-    monthCache = monthCache.map(r => same(r) ? rec : r);
-    if (allLoaded) all = all.map(r => same(r) ? rec : r);
-  }
   let rec = null;
-  if (!editingRec && sheet === current) {
+  if (editingRec) {
+    const r2 = makeLocalRecord(sheet, data, editingRec.row);
+    const same = r => r.sheet === editingRec.sheet && r.row === editingRec.row;
+    monthData[sheet] = (monthData[sheet] || []).map(r => same(r) ? r2 : r);
+    rec = r2;
+  } else if (sheet === current || Array.isArray(monthData[sheet])) {
     rec = makeLocalRecord(sheet, data, null);
-    monthCache = [...monthCache, rec];
-    if (allLoaded) all = [...all, rec];
+    monthData[sheet] = [...(monthData[sheet] || []), rec];
   }
+  rebuildAll();
   renderCurrentTab();
   return rec;
 }
 function removeLocalRecord(rec) {
-  monthCache = monthCache.filter(r => r !== rec);
-  all = all.filter(r => r !== rec);
+  if (monthData[rec.sheet]) monthData[rec.sheet] = monthData[rec.sheet].filter(r => r !== rec);
+  rebuildAll();
   renderCurrentTab();
 }
 
