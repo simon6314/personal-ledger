@@ -575,7 +575,7 @@ function renderAnnual() {
   $('yInc').textContent = money(inc);
   $('yExp').textContent = money(exp);
   $('yBal').textContent = money(inc - exp);
-  $('yBal').className = (inc - exp) >= 0 ? 'in' : 'out';
+  $('yBal').className = (inc - exp) >= 0 ? 'bal-pos' : 'bal-neg';
   const passed = year === new Date().getFullYear() ? new Date().getMonth() + 1 : 12;
   $('yAvg').textContent = money(exp / Math.max(1, passed));
 
