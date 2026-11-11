@@ -194,6 +194,8 @@ async function loadMonthCache() {
   const d = await apiGet({ action: 'getAll', sheet: current });
   if (seq !== monthSeq) return;
   monthCache = (d.records || []).map(r => ({ ...r, sheet: current, iso: isoFromDate(current, r.date) }));
+  // 全部紀錄已載入時，也要立刻用最新的當月資料取代 all 裡的當月部分（不必等所有月份載完，待同步標籤才會消失）
+  if (allLoaded) all = all.filter(r => r.sheet !== current).concat(monthCache);
   setStatus(allLoaded ? lastSyncText : '本月已載入，其他月份背景載入中…');
   renderCurrentTab();
 }
