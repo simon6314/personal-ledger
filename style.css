@@ -384,3 +384,9 @@ main { position: relative; z-index: 1; }
 /* 收入／支出金額顏色：台灣習慣，收入紅、支出綠（結餘與淨值仍用原本的正負色） */
 .amt-inc { color: #dc2626; }
 .amt-exp { color: #16a34a; }
+
+/* 財產餘額顏色：正數紅、負數綠 */
+.bal-pos { color: #dc2626; }
+.bal-neg { color: #16a34a; }
+.card strong.bal-pos, .card.big strong.bal-pos { color: #dc2626; }
+.card strong.bal-neg, .card.big strong.bal-neg { color: #16a34a; }

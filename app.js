@@ -689,12 +689,13 @@ function renderAssets() {
   };
   const t = totals(balToday), a = totals(balAll);
   $('aNet').textContent = money(t.net);
-  $('aNet').className = t.net >= 0 ? 'in' : 'out';
+  $('aNet').className = t.net >= 0 ? 'bal-pos' : 'bal-neg';
   $('aNetAll').textContent = '含未來日期：' + money(a.net);
   $('aBank').textContent = money(t.bank);
+  $('aBank').className = t.bank >= 0 ? 'bal-pos' : 'bal-neg';
   $('aBankAll').textContent = '含未來：' + money(a.bank);
   $('aCard').textContent = money(t.card);
-  $('aCard').className = t.card < 0 ? 'out' : '';
+  $('aCard').className = t.card >= 0 ? 'bal-pos' : 'bal-neg';
   $('aCardAll').textContent = '含未來：' + money(a.card);
 
   const names = Object.keys(balAll).concat(Object.keys(balToday)).filter((n, i, arr) => arr.indexOf(n) === i);
@@ -709,7 +710,7 @@ function renderAssets() {
     const subA = items.reduce((s, n) => s + (balAll[n] || 0), 0);
     return `<div class="acc-group">
       <div class="acc-group-head"><span>${tp}</span><span><b>${money(subT)}</b><small> ｜ 含未來 ${money(subA)}</small></span></div>
-      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'out' : ''}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${['現金', '銀行'].includes(tp) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
+      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'bal-neg' : 'bal-pos'}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${['現金', '銀行'].includes(tp) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
@@ -742,7 +743,7 @@ function renderAssets() {
   const curIdx = ascMonths.findIndex(m => isoYM(m) === thisYM);
   const curVal = curIdx >= 0 ? seriesToday[curIdx] : null;
   $('netCur').textContent = curVal == null ? '-' : money(curVal);
-  $('netCur').className = curVal != null && curVal < 0 ? 'out' : 'in';
+  $('netCur').className = curVal != null && curVal < 0 ? 'bal-neg' : 'bal-pos';
   if ($('netInner')) $('netInner').style.width = Math.max(ascMonths.length * 68, 320) + 'px';
   // 依月增減上色（台灣習慣）：增加＝紅、減少＝綠、第一個月或無資料＝原本的青色
   const UP = '#dc2626', DOWN = '#16a34a', BASE = '#0a9396';
