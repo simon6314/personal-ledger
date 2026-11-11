@@ -368,7 +368,7 @@ function openStatModal(kind) {
   $('statTitle').textContent = `${isInc ? '💚 收入' : '🧾 支出'}統計`;
   $('statSum').innerHTML = `
     <div class="acc-sum-grid">
-      <div><span>總額</span><b class="${isInc ? 'in' : 'out'}">${money(total)}</b></div>
+      <div><span>總額</span><b class="${isInc ? 'amt-inc' : 'amt-exp'}">${money(total)}</b></div>
       <div><span>筆數</span><b>${count}</b></div>
       <div><span>平均每筆</span><b>${money(Math.round(avg))}</b></div>
       <div><span>最大一筆</span><b>${biggest ? money(biggest[key]) : '-'}</b></div>
@@ -419,7 +419,7 @@ function renderList(recs, emptyText = '這個月還沒有紀錄') {
 function rowHtml(r, withDate) {
   const isT = r.type === '轉帳';
   const amt = isT ? r.transfer : (r.income ? r.income : r.expense);
-  const cls = isT ? 'tr' : (r.income ? 'in' : 'out');
+  const cls = isT ? 'tr' : (r.income ? 'amt-inc' : 'amt-exp');
   const sign = isT ? '⇄' : (r.income ? '+' : '−');
   const sub = isT
     ? `${esc(r.account)} → ${esc(r.toAccount)}`
@@ -458,8 +458,8 @@ function openAccountDetail(name) {
     <div class="acc-sum-grid">
       <div><span>目前餘額</span><b class="${balToday < 0 ? 'out' : ''}">${money(balToday)}</b></div>
       <div><span>含未來日期</span><b class="${balAll < 0 ? 'out' : ''}">${money(balAll)}</b></div>
-      <div><span>收入</span><b class="in">${money(inc)}</b></div>
-      <div><span>支出</span><b class="out">${money(exp)}</b></div>
+      <div><span>收入</span><b class="amt-inc">${money(inc)}</b></div>
+      <div><span>支出</span><b class="amt-exp">${money(exp)}</b></div>
       <div><span>轉入</span><b>${money(tin)}</b></div>
       <div><span>轉出</span><b>${money(tout)}</b></div>
     </div>

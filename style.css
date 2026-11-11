@@ -380,3 +380,7 @@ main { position: relative; z-index: 1; }
 
 /* 搜尋提示字縮小，避免被截斷 */
 #searchInput::placeholder { font-size: 13px; opacity: .8; }
+
+/* 收入／支出金額顏色：台灣習慣，收入紅、支出綠（結餘與淨值仍用原本的正負色） */
+.amt-inc { color: #dc2626; }
+.amt-exp { color: #16a34a; }

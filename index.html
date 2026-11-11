@@ -38,8 +38,8 @@
       <input id="searchInput" type="search" placeholder="搜尋全部紀錄：項目、分類、帳戶、備註、金額" aria-label="搜尋">
     </div>
     <section class="summary">
-      <div class="card stat-card" data-stat="income" role="button" tabindex="0"><span>💚 收入</span><strong id="sumIncome" class="in">-</strong></div>
-      <div class="card stat-card" data-stat="expense" role="button" tabindex="0"><span>🧾 支出</span><strong id="sumExpense" class="out">-</strong></div>
+      <div class="card stat-card" data-stat="income" role="button" tabindex="0"><span>💚 收入</span><strong id="sumIncome" class="amt-inc">-</strong></div>
+      <div class="card stat-card" data-stat="expense" role="button" tabindex="0"><span>🧾 支出</span><strong id="sumExpense" class="amt-exp">-</strong></div>
       <div class="card"><span>🌟 結餘</span><strong id="sumBalance">-</strong></div>
       <div class="card"><span>🔁 轉帳（不計入）</span><strong id="sumTransfer" class="tr">-</strong></div>
     </section>
@@ -51,7 +51,7 @@
   <section id="tab-analysis" class="tab-panel hidden">
     <div class="panel-head">
       <h2 id="anaTitle">本月支出分類</h2>
-      <strong id="anaTotal" class="out">-</strong>
+      <strong id="anaTotal" class="amt-exp">-</strong>
     </div>
     <div id="anaCats" class="bars"></div>
     <h3 class="section-title">和上個月比較</h3>
@@ -64,8 +64,8 @@
       <select id="yearSel" aria-label="選擇年度"></select>
     </div>
     <section class="summary">
-      <div class="card"><span>年度收入</span><strong id="yInc" class="in">-</strong></div>
-      <div class="card"><span>年度支出</span><strong id="yExp" class="out">-</strong></div>
+      <div class="card"><span>年度收入</span><strong id="yInc" class="amt-inc">-</strong></div>
+      <div class="card"><span>年度支出</span><strong id="yExp" class="amt-exp">-</strong></div>
       <div class="card"><span>年度結餘</span><strong id="yBal">-</strong></div>
       <div class="card"><span>月平均支出</span><strong id="yAvg">-</strong></div>
     </section>
@@ -75,8 +75,8 @@
     <div id="yCats" class="bars"></div>
     <h3 class="section-title">股息統計（項目含「股息」的轉帳）</h3>
     <section class="summary">
-      <div class="card"><span>股息（毛額）</span><strong id="dGross" class="in">-</strong></div>
-      <div class="card"><span>股息手續費</span><strong id="dFee" class="out">-</strong></div>
+      <div class="card"><span>股息（毛額）</span><strong id="dGross" class="amt-inc">-</strong></div>
+      <div class="card"><span>股息手續費</span><strong id="dFee" class="amt-exp">-</strong></div>
       <div class="card"><span>實收股息</span><strong id="dNet">-</strong></div>
       <div class="card"><span>入帳次數</span><strong id="dCount">-</strong></div>
     </section>
@@ -211,6 +211,6 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111102"></script>
+<script src="app.js?v=2026111103"></script>
 </body>
 </html>
