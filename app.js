@@ -407,6 +407,14 @@ function renderSearch(q) {
   renderList(shown, '找不到符合的紀錄');
 }
 
+// 2026-11-13 → 2026-11-13(五)
+function isoWithWeekday(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return iso;
+  const wd = '日一二三四五六'[new Date(+m[1], +m[2] - 1, +m[3]).getDay()];
+  return `${iso}(${wd})`;
+}
+
 function renderList(recs, emptyText = '這個月還沒有紀錄') {
   const el = $('list');
   if (!recs.length) { el.innerHTML = `<div class="empty">${emptyText}</div>`; return; }
@@ -415,7 +423,7 @@ function renderList(recs, emptyText = '這個月還沒有紀錄') {
   const dates = Object.keys(groups).sort().reverse();
   el.innerHTML = dates.map(date => {
     const rows = groups[date].slice().sort((a, b) => b.row - a.row);
-    return `<div class="date-head">${esc(date)}</div>` + rows.map(r => rowHtml(r, true)).join('');
+    return `<div class="date-head">${esc(isoWithWeekday(date))}</div>` + rows.map(r => rowHtml(r, true)).join('');
   }).join('');
 }
 
@@ -429,7 +437,7 @@ function rowHtml(r, withDate, bal) {
     : `${esc(r.account)}${r.category ? ' · ' + esc(catText(r.category)) : ''}`;
   const feeTxt = r.fee ? ` · 手續費 ${esc(String(r.fee))}` : '';
   const note = r.note ? ' · ' + esc(r.note) : '';
-  const dateTxt = withDate ? esc(r.iso) + ' · ' : '';
+  const dateTxt = withDate ? esc(isoWithWeekday(r.iso)) + ' · ' : '';
   const pendTxt = r.pending ? '⏳ 同步中 · ' : '';
   return `<button class="rec" data-sheet="${esc(r.sheet)}" data-row="${r.row}">
     <div class="rec-main">
