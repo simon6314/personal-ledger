@@ -1,7 +1,7 @@
 // 我的帳本 — 前端（後端為 Google 試算表 + Apps Script，見 Code.gs）
 const API = 'https://script.google.com/macros/s/AKfycbylWxx8suN9zH5rOWbNbb5_z-4iTQT8P9Aowb_f3mldaQFwbHc78gArrcXswhAOLKP1/exec';
 const TOKEN_KEY = 'personal_ledger_token';
-const TYPE_ORDER = ['現金', '銀行', '信用卡', '其他'];
+const TYPE_ORDER = ['現金', '銀行', '信用卡', '股票', '其他'];
 
 let current = currentSheetName();   // 目前檢視的月份，例如 "2026/11月"
 let months = [];                    // 所有月份分頁
@@ -43,6 +43,9 @@ function isoFromDate(sheet, mmdd) {
   return `${m[1]}-${pad(m[2])}-${pad(dd)}`;
 }
 function typeOf(name) { const a = accounts.find(x => x.name === name); return (a && a.type) || '其他'; }
+// 股票帳戶：類型設為「股票」，或名稱含「股票」
+const isStockAcc = n => typeOf(n) === '股票' || /股票/.test(n);
+const isBankAcc = n => ['現金', '銀行'].includes(typeOf(n)) && !isStockAcc(n);
 
 // 依 key 分組加總，依金額由大到小排序
 // ── 分類圖示（只影響顯示，資料仍是純文字分類名稱）─────────────────
@@ -709,7 +712,8 @@ function renderAssets() {
     const names = Object.keys(bal);
     return {
       net: names.reduce((s, n) => s + bal[n], 0),
-      bank: names.filter(n => ['現金', '銀行'].includes(typeOf(n))).reduce((s, n) => s + bal[n], 0),
+      bank: names.filter(isBankAcc).reduce((s, n) => s + bal[n], 0),
+      stock: names.filter(isStockAcc).reduce((s, n) => s + bal[n], 0),
       card: names.filter(n => typeOf(n) === '信用卡').reduce((s, n) => s + bal[n], 0)
     };
   };
@@ -723,20 +727,23 @@ function renderAssets() {
   $('aCard').textContent = money(t.card);
   $('aCard').className = t.card >= 0 ? 'bal-pos' : 'bal-neg';
   $('aCardAll').textContent = '含未來：' + money(a.card);
+  $('aStock').textContent = money(t.stock);
+  $('aStock').className = t.stock >= 0 ? 'bal-pos' : 'bal-neg';
+  $('aStockAll').textContent = '含未來：' + money(a.stock);
 
   const names = Object.keys(balAll).concat(Object.keys(balToday)).filter((n, i, arr) => arr.indexOf(n) === i);
   // 現金與銀行各帳戶占「現金與銀行」合計的比例（截至今天）
-  const bankNames = names.filter(n => ['現金', '銀行'].includes(typeOf(n)));
+  const bankNames = names.filter(isBankAcc);
   const bankTotal = bankNames.reduce((s, n) => s + (balToday[n] || 0), 0);
   const shareOf = n => bankTotal ? ((balToday[n] || 0) / bankTotal * 100).toFixed(1) + '%' : '-';
   $('aAccounts').innerHTML = TYPE_ORDER.map(tp => {
-    const items = names.filter(n => typeOf(n) === tp).sort((x, y) => (balToday[y] || 0) - (balToday[x] || 0));
+    const items = names.filter(n => (tp === '股票' ? isStockAcc(n) : (typeOf(n) === tp && !isStockAcc(n)))).sort((x, y) => (balToday[y] || 0) - (balToday[x] || 0));
     if (!items.length) return '';
     const subT = items.reduce((s, n) => s + (balToday[n] || 0), 0);
     const subA = items.reduce((s, n) => s + (balAll[n] || 0), 0);
     return `<div class="acc-group">
       <div class="acc-group-head"><span>${tp}</span><span><b>${money(subT)}</b><small> ｜ 含未來 ${money(subA)}</small></span></div>
-      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'bal-neg' : 'bal-pos'}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${['現金', '銀行'].includes(tp) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
+      ${items.map(n => `<div class="acc-line" data-acc="${esc(n)}"><span>${esc(n)}</span><span><b class="${(balToday[n] || 0) < 0 ? 'bal-neg' : 'bal-pos'}">${money(balToday[n] || 0)}</b><small>含未來 ${money(balAll[n] || 0)}${isBankAcc(n) ? ` ｜ 占現金與銀行 ${shareOf(n)}` : ''}</small></span></div>`).join('')}
     </div>`;
   }).join('') || '<div class="empty">還沒有帳戶</div>';
 
