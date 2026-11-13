@@ -438,7 +438,7 @@ function rowHtml(r, withDate, bal) {
     </div>
     <div class="rec-right">
       <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
-      ${bal === undefined ? '' : `<div class="rec-bal ${bal < 0 ? 'bal-neg' : 'bal-pos'}">${bal < 0 ? '欠 ' : '剩 '}${money(Math.abs(bal))}</div>`}
+      ${bal === undefined ? '' : `<div class="rec-bal ${bal < 0 ? 'bal-neg' : 'bal-pos'}">${bal < 0 ? '−' : '+'}${money(Math.abs(bal))}</div>`}
     </div>
   </button>`;
 }
