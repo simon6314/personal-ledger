@@ -319,19 +319,22 @@ function mergeDividendFees(list) {
   const out = [];
   const used = new Set();
   const merged = {};
+  const feeKeys = {};
   list.forEach(r => {
     if (isFee(r)) {
       const bucket = divs[r.iso + '|' + r.account] || [];
       const target = bucket.find(d => !used.has(d.sheet + ':' + d.row));
       if (target) {
         used.add(target.sheet + ':' + target.row);
-        merged[target.sheet + ':' + target.row] = (merged[target.sheet + ':' + target.row] || 0) + Number(r.expense);
+        const tk = target.sheet + ':' + target.row;
+        merged[tk] = (merged[tk] || 0) + Number(r.expense);
+        (feeKeys[tk] = feeKeys[tk] || []).push(r.sheet + ':' + r.row);
         return;                       // 這筆手續費併入股息，不另外列出
       }
     }
     out.push(r);
   });
-  return out.map(r => merged[r.sheet + ':' + r.row] ? { ...r, fee: merged[r.sheet + ':' + r.row] } : r);
+  return out.map(r => merged[r.sheet + ':' + r.row] ? { ...r, fee: merged[r.sheet + ':' + r.row], feeKeys: feeKeys[r.sheet + ':' + r.row] } : r);
 }
 
 function renderRecords() {
@@ -416,7 +419,7 @@ function renderList(recs, emptyText = '這個月還沒有紀錄') {
   }).join('');
 }
 
-function rowHtml(r, withDate) {
+function rowHtml(r, withDate, bal) {
   const isT = r.type === '轉帳';
   const amt = isT ? r.transfer : (r.income ? r.income : r.expense);
   const cls = isT ? 'tr' : (r.income ? 'amt-inc' : 'amt-exp');
@@ -433,7 +436,10 @@ function rowHtml(r, withDate) {
       <div class="rec-item">${esc(r.item)}</div>
       <div class="rec-sub">${pendTxt}${dateTxt}${sub}${feeTxt}${note}</div>
     </div>
-    <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
+    <div class="rec-right">
+      <div class="rec-amt ${cls}">${sign} ${money(amt)}</div>
+      ${bal === undefined ? '' : `<div class="rec-bal ${bal < 0 ? 'bal-neg' : 'bal-pos'}">${bal < 0 ? '欠 ' : '剩 '}${money(Math.abs(bal))}</div>`}
+    </div>
   </button>`;
 }
 
@@ -472,6 +478,18 @@ function openAccountDetail(name) {
     }
     return r.account === name ? (Number(r.income) || 0) - (Number(r.expense) || 0) : 0;
   };
+  // 每筆之後的餘額（剩餘或欠款）：依日期與列號由舊到新累加，與餘額計算規則相同
+  const chron = rel.slice().sort((a, b) => (a.iso === b.iso ? (a.sheet === b.sheet ? a.row - b.row : (a.sheet < b.sheet ? -1 : 1)) : (a.iso < b.iso ? -1 : 1)));
+  const afterKey = new Map();
+  let run = 0;
+  chron.forEach((r, i) => { run += deltaOf(r); afterKey.set(r.sheet + ':' + r.row, { i, val: run }); });
+  // 併入股息的手續費：該列的餘額取「股息與其手續費都扣完之後」的值
+  const balAfter = r => {
+    const keys = [r.sheet + ':' + r.row, ...(r.feeKeys || [])];
+    const hits = keys.map(k => afterKey.get(k)).filter(Boolean);
+    if (!hits.length) return undefined;
+    return hits.reduce((x, y) => (y.i > x.i ? y : x)).val;
+  };
   const byMonth = new Map();
   shown.forEach(r => {
     const k = r.iso.slice(0, 7);
@@ -483,7 +501,7 @@ function openAccountDetail(name) {
         const rs = byMonth.get(k);
         const net = rs.reduce((x, r) => x + deltaOf(r), 0);
         return `<div class="date-head acc-month-head">${k.replace('-', '年')}月 ｜ 淨變動 <b class="${net < 0 ? 'out' : 'in'}">${net < 0 ? '−' : '+'}${money(Math.abs(net))}</b> ｜ ${rs.length} 筆</div>`
-          + rs.map(r => rowHtml(r, true)).join('');
+          + rs.map(r => rowHtml(r, true, balAfter(r))).join('');
       }).join('')
     : '<div class="empty">這個帳戶還沒有紀錄</div>';
   openModal('accDetailModal');

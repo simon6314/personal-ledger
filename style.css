@@ -390,3 +390,9 @@ main { position: relative; z-index: 1; }
 .bal-neg { color: #16a34a; }
 .card strong.bal-pos, .card.big strong.bal-pos { color: #dc2626; }
 .card strong.bal-neg, .card.big strong.bal-neg { color: #16a34a; }
+
+/* ── 帳戶明細：每筆之後的剩餘／欠款 ── */
+.rec-right { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
+.rec-bal { font-size: 12px; color: var(--muted, #64748b); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.rec-bal.bal-pos { color: #dc2626; }
+.rec-bal.bal-neg { color: #16a34a; font-weight: 600; }
