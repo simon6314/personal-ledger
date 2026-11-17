@@ -1,13 +1,20 @@
-// 我的帳本 — 首頁「我的辦公室」：上面是動畫辦公室（你＋三位小幫手），下面是本月收支與占比
+// 我的帳本 — 首頁「我的帳本大樓」：上面是四層樓的動畫大樓（你＋三位小幫手，搭電梯跑來跑去），下面是本月收支與占比
 // 依賴 app.js 的全域：monthRecords、current、months、monthData、allLoaded、accounts、balancesAsOf、
 // isStockAcc、groupSum、sum、money、esc、catText、drawChart、todayIso、sheetOrder、mergeDividendFees
 
-// ── 場景設定（座標以 1000 × 520 的房間為準）────────────────────────
-const HM_W = 1000, HM_H = 520;
+// ── 大樓設定（座標以 1000 × 1500 的大樓剖面為準）────────────────────
+// 由上到下：屋頂、4F 股票交易室、3F 分析室、2F 老闆辦公室、1F 記帳大廳、街道
+const HM_W = 1000, HM_H = 1500;
+const HM_FT = { 4: 140, 3: 440, 2: 740, 1: 1040 };          // 各樓層天花板 y
+const HM_FH = 300;
+const hmFeet = f => HM_FT[f] + 272;                          // 該樓層站立的 y
+const HM_LIFT_X = 935, HM_LIFT_DOOR = 858;                    // 電梯車廂中心、電梯門口
 const HM_SPOTS = {
-  me: [500, 330], book: [190, 360], chart: [770, 330], stock: [880, 470],
-  coffee: [80, 220], sofa: [330, 470], window: [520, 200], plant: [960, 250],
-  meetBook: [430, 360], meetChart: [570, 360], meetStock: [560, 400],
+  stock: [330, 4], monitor: [520, 4], vault: [690, 4],
+  chart: [560, 3], board: [300, 3], shelf: [740, 3],
+  me: [470, 2], sofa: [720, 2], window: [230, 2],
+  book: [300, 1], coffee: [600, 1], notice: [740, 1], door: [110, 1],
+  meetBook: [380, 2], meetChart: [560, 2], meetStock: [610, 2],
 };
 const HM_ACTORS = [
   { id: 'me', name: '我', role: '老闆', seat: 'me', look: { skin: '#fcdcc4', hair: '#1f1d24', hs: 'side', cloth: '#3b4a6b', tie: '#ef7d9a', g: 'm' } },
@@ -15,6 +22,9 @@ const HM_ACTORS = [
   { id: 'chart', name: '小分', role: '分析員', seat: 'chart', look: { skin: '#fcdcc4', hair: '#2e2a30', hs: 'pony', cloth: '#9fd0f0', g: 'f' } },
   { id: 'stock', name: '小股', role: '股票員', seat: 'stock', look: { skin: '#f6d2b8', hair: '#3b2f2f', hs: 'short', cloth: '#4f6f5f', tie: '#ffd66b', g: 'm' } },
 ];
+const HM_FLOOR_NAME = { 4: '4F 股票交易室', 3: '3F 分析室', 2: '2F 老闆辦公室', 1: '1F 記帳大廳' };
+const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
+const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
 
 // ── Q 版小人（跟共同帳本辦公室同一套畫法）──────────────────────────
 function hmPerson(lk) {
@@ -125,33 +135,81 @@ function hmReport(id, d) {
 }
 
 // ── 動畫 ────────────────────────────────────────────────────
-let hmActors = {}, hmRaf = 0, hmLast = 0, hmData_ = null, hmNext = 0, hmBuilt = false;
+// ── 動畫：走路、電梯 ───────────────────────────────────────────
+let hmActors = {}, hmRaf = 0, hmLast = 0, hmData_ = null, hmNext = 0, hmBuilt = false, hmClockT = 0;
+const hmLift = { y: HM_FT[1], target: null, done: null, queue: Promise.resolve(), el: null, doorEl: null };
 function hmPlace(a) {
   a.el.style.left = (a.pos[0] / HM_W * 100) + '%';
   a.el.style.top = (a.pos[1] / HM_H * 100) + '%';
-  a.el.style.zIndex = String(Math.round(a.pos[1]) + (a.bub ? 1000 : 0));
+  a.el.style.zIndex = String(Math.round(a.pos[1]) + (a.inLift ? 3000 : 0) + (a.bub ? 6000 : 0));
 }
 function hmSay(id, text, ms = 3000, cls = '') {
   const a = hmActors[id];
   if (!a) return;
   clearTimeout(a.bt);
   a.bubEl.textContent = text;
-  a.bubEl.className = 'hm-bub show ' + cls + (a.pos[1] < 150 ? ' below' : '') + (a.pos[0] > 760 ? ' edge-r' : a.pos[0] < 240 ? ' edge-l' : '');   // 靠邊時泡泡往內長，不被切掉
+  const top = a.pos[1] - HM_FT[a.floor] < 150 && a.floor === 4;
+  a.bubEl.className = 'hm-bub show ' + cls + (top ? ' below' : '') + (a.pos[0] > 720 ? ' edge-r' : a.pos[0] < 250 ? ' edge-l' : '');
   a.bub = true; hmPlace(a);
   a.bt = setTimeout(() => { a.bubEl.className = 'hm-bub'; a.bub = false; hmPlace(a); }, ms);
 }
-function hmWalk(id, spot) {
-  const a = hmActors[id];
-  return new Promise(res => { a.target = HM_SPOTS[spot] || spot; a.done = res; a.el.classList.add('walk'); });
-}
 const hmWait = ms => new Promise(r => setTimeout(r, ms));
+function hmStep(a, x) {
+  return new Promise(res => { a.target = [x, hmFeet(a.floor)]; a.done = res; a.el.classList.add('walk'); });
+}
+function hmLiftTo(f) {
+  return new Promise(res => { hmLift.target = HM_FT[f]; hmLift.done = res; });
+}
+function hmDoors(open) { hmLift.doorEl.classList.toggle('open', open); return hmWait(450); }
+// 搭電梯：一次載一個人，其他人排隊
+function hmRide(a, to) {
+  const job = hmLift.queue.then(async () => {
+    $('hmLiftInd').textContent = `${a.floor}F`;
+    await hmLiftTo(a.floor);
+    await hmDoors(true);
+    a.inLift = true;
+    await hmStep(a, HM_LIFT_X);
+    await hmDoors(false);
+    a.riding = true;
+    await hmLiftTo(to);
+    a.riding = false;
+    a.floor = to;
+    await hmDoors(true);
+    await hmStep(a, HM_LIFT_DOOR);
+    a.inLift = false;
+    await hmDoors(false);
+  });
+  hmLift.queue = job.catch(() => {});
+  return job;
+}
+async function hmGo(id, key) {
+  const a = hmActors[id], s = hmSpot(key);
+  if (a.floor !== s.f) {
+    a.el.classList.add('walk');
+    await hmStep(a, HM_LIFT_DOOR);
+    a.el.classList.remove('walk');
+    hmSay(id, '等電梯中… 🛗', 1600);
+    await hmRide(a, s.f);
+  }
+  await hmStep(a, s.x);
+}
 function hmTick(now) {
   hmRaf = requestAnimationFrame(hmTick);
   const dt = Math.min(0.1, hmLast ? (now - hmLast) / 1000 : 0);
   hmLast = now;
+  // 電梯
+  if (hmLift.target != null) {
+    const dy = hmLift.target - hmLift.y, step = 260 * dt;
+    if (Math.abs(dy) <= step) { hmLift.y = hmLift.target; hmLift.target = null; const f = hmLift.done; hmLift.done = null; if (f) f(); }
+    else hmLift.y += Math.sign(dy) * step;
+    hmLift.el.style.top = (hmLift.y / HM_H * 100) + '%';
+    const fl = [1, 2, 3, 4].reduce((b, f) => (Math.abs(HM_FT[f] - hmLift.y) < Math.abs(HM_FT[b] - hmLift.y) ? f : b), 1);
+    $('hmLiftInd').textContent = `${fl}F`;
+  }
   Object.values(hmActors).forEach(a => {
+    if (a.riding) { a.pos[1] = hmLift.y + 272; hmPlace(a); return; }
     if (!a.target) return;
-    const dx = a.target[0] - a.pos[0], dy = a.target[1] - a.pos[1], dist = Math.hypot(dx, dy), step = 110 * dt;
+    const dx = a.target[0] - a.pos[0], dy = a.target[1] - a.pos[1], dist = Math.hypot(dx, dy), step = 150 * dt;
     if (Math.abs(dx) > 1) a.figEl.classList.toggle('flip', dx < 0);
     if (dist <= step) {
       a.pos = a.target.slice(); a.target = null; a.el.classList.remove('walk');
@@ -159,7 +217,9 @@ function hmTick(now) {
     } else { a.pos[0] += dx / dist * step; a.pos[1] += dy / dist * step; }
     hmPlace(a);
   });
-  if (now > hmNext && hmData_) { hmNext = now + 4000 + Math.random() * 5000; hmIdle(); }
+  if (now > hmNext && hmData_) { hmNext = now + 3500 + Math.random() * 4500; hmIdle(); }
+  // 每分鐘更新時鐘和白天／晚上
+  if (now - hmClockT > 60000) { hmClockT = now; if (hmData_) hmDrawBuilding(hmData_); }
 }
 async function hmIdle() {
   const free = Object.values(hmActors).filter(a => !a.busy);
@@ -169,23 +229,48 @@ async function hmIdle() {
   const r = Math.random();
   a.busy = true;
   try {
-    if (a.id !== 'me' && r < 0.3 && !hmActors.me.busy) {
-      // 去找老闆報告
-      hmActors.me.busy = true;
-      await hmWalk(a.id, a.id === 'book' ? 'meetBook' : a.id === 'chart' ? 'meetChart' : 'meetStock');
-      a.figEl.classList.toggle('flip', a.pos[0] > hmActors.me.pos[0]);
-      hmActors.me.figEl.classList.toggle('flip', a.pos[0] < hmActors.me.pos[0]);
-      for (const ln of hmReport(a.id, d)) { hmSay(ln.who, ln.text, 2600); await hmWait(2100); }
-      hmActors.me.busy = false;
-      await hmWalk(a.id, a.seat);
-    } else if (a.id === 'me' && r < 0.45) {
-      const where = pk(['coffee', 'sofa', 'window', 'plant']);
-      await hmWalk('me', where);
-      hmSay('me', { coffee: '來杯咖啡 ☕', sofa: '休息一下～ 🛋️', window: '今天天氣如何呢 🌤️', plant: '幫盆栽澆水 🌱' }[where]);
+    if (a.id !== 'me' && r < 0.32 && !hmActors.me.busy && hmActors.me.floor === 2) {
+      // 搭電梯去 2F 找老闆報告
+      const boss = hmActors.me;
+      boss.busy = true;
+      try {
+        await hmGo(a.id, a.id === 'book' ? 'meetBook' : a.id === 'chart' ? 'meetChart' : 'meetStock');
+        a.figEl.classList.toggle('flip', a.pos[0] > boss.pos[0]);
+        boss.figEl.classList.toggle('flip', a.pos[0] < boss.pos[0]);
+        for (const ln of hmReport(a.id, d)) { hmSay(ln.who, ln.text, 2800); await hmWait(2300); }
+      } finally { boss.busy = false; boss.figEl.classList.remove('flip'); }
+      await hmGo(a.id, a.seat);
+    } else if (a.id === 'me' && r < 0.5) {
+      // 老闆巡樓：倒咖啡、看白板、看盤、窗邊、沙發
+      const where = pk(['coffee', 'board', 'monitor', 'window', 'sofa', 'notice', 'vault']);
+      await hmGo('me', where);
+      const text = {
+        coffee: '來杯咖啡提神 ☕', board: d.cats[0] ? `原來${catText(d.cats[0][0])}花最多…` : '白板好乾淨 ✨',
+        monitor: d.stockBal != null ? `股票帳戶 ${hmShortMoney(d.stockBal)}…穩住 📈` : '看一下盤 📈',
+        window: hmNight() ? '夜景好美 🌃' : '今天天氣不錯 🌤️', sofa: '休息一下～ 🛋️',
+        notice: d.latest ? `最新一筆是「${d.latest.item}」` : '公告欄空空的 📌', vault: d.inc - d.exp >= 0 ? '小豬撲滿又變胖了 🐷' : '撲滿要節食了 🐷',
+      }[where];
+      hmSay('me', text, 3200);
       a.el.classList.add(where === 'sofa' ? 'rest' : 'happy');
-      await hmWait(3500);
+      // 遇到同一層的小幫手，順便打招呼
+      const mate = Object.values(hmActors).find(x => x !== a && x.floor === a.floor && !x.busy);
+      await hmWait(2400);
+      if (mate) { hmSay(mate.id, pk(['老闆好！👋', '老闆來巡視了 😳', '老闆要喝咖啡嗎 ☕']), 2200); await hmWait(1600); }
       a.el.classList.remove('rest', 'happy');
-      await hmWalk('me', 'me');
+      await hmGo('me', 'me');
+    } else if (a.id !== 'me' && r < 0.5) {
+      // 小幫手在自己樓層走動做事
+      const near = { book: ['coffee', 'notice', 'door'], chart: ['board', 'shelf'], stock: ['monitor', 'vault'] }[a.id];
+      const where = pk(near);
+      await hmGo(a.id, where);
+      hmSay(a.id, {
+        coffee: '泡杯咖啡再繼續記 ☕', notice: '把最新的帳貼上公告欄 📌', door: '去信箱拿帳單 📬',
+        board: '把白板的數字更新一下 ✏️', shelf: '翻一下上個月的報表 📚', monitor: '盯盤中…綠油油的別嚇我 😵', vault: '數數存錢筒 🐷',
+      }[where], 2800);
+      a.el.classList.add('happy');
+      await hmWait(2600);
+      a.el.classList.remove('happy');
+      await hmGo(a.id, a.seat);
     } else {
       hmSay(a.id, hmLine(a.id, d));
       a.el.classList.add('happy');
@@ -195,53 +280,181 @@ async function hmIdle() {
   } finally { a.busy = false; a.figEl.classList.remove('flip'); }
 }
 
-// ── 場景畫面 ─────────────────────────────────────────────────
-function hmRoomSvg(d) {
-  const bars = (d.cats.slice(0, 4).length ? d.cats.slice(0, 4) : [['', 0]]).map(([, v], i, arr) => {
-    const max = arr[0][1] || 1, h = Math.max(6, v / max * 70);
-    return `<rect x="${700 + i * 32}" y="${265 - h}" width="22" height="${h}" rx="3" fill="${['#ef7d9a', '#ffd66b', '#7fb6f0', '#8fd3b0'][i]}"/>`;
+// ── 大樓畫面 ─────────────────────────────────────────────────
+function hmT(s, n) { const a = [...String(s || '')]; return esc(a.length > n ? a.slice(0, n - 1).join('') + '…' : a.join('')); }
+function hmPlant(x, y, s = 1) {
+  return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="0" cy="2" rx="22" ry="5" fill="rgba(70,40,20,.15)"/>
+    <ellipse cx="-12" cy="-44" rx="14" ry="24" fill="#5f9e62" transform="rotate(-25 -12 -44)"/><ellipse cx="13" cy="-48" rx="14" ry="26" fill="#6fb06f" transform="rotate(22 13 -48)"/>
+    <ellipse cx="0" cy="-62" rx="13" ry="22" fill="#82be7c"/><path d="M-12 -44 l6 10 M13 -48 l-6 11 M0 -62 v20" stroke="#4d8a52" stroke-width="2"/>
+    <path d="M-17 -26 h34 l-5 28 h-24 Z" fill="#d98f5c"/><rect x="-19" y="-30" width="38" height="7" rx="3" fill="#c47a48"/></g>`;
+}
+function hmWindow(x, y, w, h, night) {
+  const sky = night ? ['#1d2b4f', '#3a4a7a'] : ['#8fcff3', '#dff2fd'];
+  return `<g><rect x="${x - 6}" y="${y - 6}" width="${w + 12}" height="${h + 12}" rx="8" fill="#f7efe4" stroke="#d8c3a8" stroke-width="3"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${sky[0]}"/><rect x="${x}" y="${y + h * 0.55}" width="${w}" height="${h * 0.45}" fill="${sky[1]}" opacity=".55"/>
+    ${night ? `<circle cx="${x + w * 0.75}" cy="${y + h * 0.28}" r="${h * 0.12}" fill="#fff6c8"/><circle cx="${x + w * 0.78}" cy="${y + h * 0.24}" r="${h * 0.1}" fill="${sky[0]}"/>
+      <circle cx="${x + w * 0.2}" cy="${y + h * 0.2}" r="2" fill="#fff"/><circle cx="${x + w * 0.42}" cy="${y + h * 0.36}" r="1.6" fill="#fff"/><circle cx="${x + w * 0.58}" cy="${y + h * 0.15}" r="1.8" fill="#fff"/>`
+      : `<circle cx="${x + w * 0.76}" cy="${y + h * 0.3}" r="${h * 0.12}" fill="#ffe08a"/><ellipse cx="${x + w * 0.3}" cy="${y + h * 0.35}" rx="${w * 0.15}" ry="${h * 0.07}" fill="#fff" opacity=".9"/>`}
+    <path d="M${x} ${y + h * 0.72} q${w * 0.15} -${h * 0.18} ${w * 0.3} 0 t${w * 0.3} 0 t${w * 0.4} -${h * 0.05} V${y + h} H${x} Z" fill="${night ? '#2c3a5e' : '#9fcfae'}" opacity=".85"/>
+    <path d="M${x + w / 2} ${y} V${y + h} M${x} ${y + h / 2} H${x + w}" stroke="#f7efe4" stroke-width="6"/>
+    <rect x="${x - 10}" y="${y + h + 4}" width="${w + 20}" height="8" rx="3" fill="#d8c3a8"/></g>`;
+}
+function hmFloorShell(f, wall, floorFill, night) {
+  const y = HM_FT[f];
+  return `<rect x="20" y="${y}" width="840" height="${HM_FH}" fill="${wall}"/>
+    <rect x="20" y="${y + 200}" width="840" height="${HM_FH - 200}" fill="${floorFill}"/>
+    <rect x="20" y="${y + 196}" width="840" height="8" fill="rgba(120,80,50,.25)"/>
+    ${night ? `<rect x="20" y="${y}" width="840" height="${HM_FH}" fill="#203060" opacity=".12"/>` : ''}
+    <ellipse cx="440" cy="${y + 22}" rx="300" ry="26" fill="#fff6d8" opacity="${night ? 0.35 : 0.18}"/>
+    <path d="M300 ${y + 14} h280" stroke="#e8d9c4" stroke-width="5" stroke-linecap="round"/>
+    <rect x="34" y="${y + 18}" width="142" height="30" rx="15" fill="rgba(255,255,255,.85)" stroke="rgba(0,0,0,.06)"/>
+    <text x="105" y="${y + 39}" text-anchor="middle" font-size="18" font-weight="700" fill="#4a5568">${HM_FLOOR_NAME[f]}</text>`;
+}
+function hmDrawBuilding(d) {
+  const night = hmNight();
+  const now = new Date();
+  const P = [];
+  // 天空與背景大樓
+  P.push(`<defs>
+    <linearGradient id="hbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${night ? '#141d3a' : '#8fd0f5'}"/><stop offset="1" stop-color="${night ? '#33406e' : '#e6f6ff'}"/></linearGradient>
+    <pattern id="hbWood" width="120" height="24" patternUnits="userSpaceOnUse"><rect width="120" height="24" fill="#e8cfae"/><rect width="70" height="12" fill="#e2c6a2"/><rect x="35" y="12" width="85" height="12" fill="#ecd6b8"/><path d="M0 12 H120 M0 24 H120 M70 0 V12 M35 12 V24" stroke="#d3b48c" stroke-width="1"/></pattern>
+    <pattern id="hbTile" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#e9ecf1"/><rect width="20" height="20" fill="#f3f5f8"/><rect x="20" y="20" width="20" height="20" fill="#f3f5f8"/></pattern>
+    <pattern id="hbCarpet" width="30" height="30" patternUnits="userSpaceOnUse"><rect width="30" height="30" fill="#c9d6e8"/><circle cx="15" cy="15" r="2" fill="#b7c6dc"/></pattern>
+    <pattern id="hbBrick" width="60" height="30" patternUnits="userSpaceOnUse"><rect width="60" height="30" fill="#d9a588"/><path d="M0 15 H60 M0 30 H60 M30 0 V15 M0 15 V30 M60 15 V30" stroke="#c48a6c" stroke-width="2"/></pattern>
+  </defs>`);
+  P.push(`<rect width="${HM_W}" height="${HM_H}" fill="url(#hbSky)"/>`);
+  if (night) P.push([...Array(26)].map((_, i) => `<circle cx="${(i * 137) % 1000}" cy="${(i * 53) % 130 + 6}" r="${i % 3 ? 1.6 : 2.4}" fill="#fff" opacity=".85"/>`).join(''));
+  else P.push(`<g opacity=".95"><ellipse cx="150" cy="60" rx="60" ry="20" fill="#fff"/><ellipse cx="190" cy="48" rx="40" ry="20" fill="#fff"/><ellipse cx="760" cy="80" rx="70" ry="22" fill="#fff"/><ellipse cx="810" cy="66" rx="40" ry="18" fill="#fff"/></g>`);
+  // 外牆
+  P.push(`<rect x="8" y="${HM_FT[4] - 26}" width="${HM_W - 16}" height="${HM_FT[1] + HM_FH - HM_FT[4] + 30}" rx="10" fill="url(#hbBrick)"/>`);
+  // 屋頂：招牌、天線、太陽能板
+  P.push(`<rect x="0" y="${HM_FT[4] - 34}" width="${HM_W}" height="16" rx="6" fill="#8a5a44"/>
+    <rect x="250" y="34" width="420" height="78" rx="18" fill="#0a9396" stroke="#06707a" stroke-width="5"/>
+    <text x="460" y="88" text-anchor="middle" font-size="40" font-weight="800" fill="#fff" letter-spacing="4">📒 我的帳本大樓</text>
+    <path d="M300 112 v26 M620 112 v26" stroke="#6b5444" stroke-width="6"/>
+    <path d="M820 ${HM_FT[4] - 34} v-70" stroke="#6b6b75" stroke-width="5"/><circle cx="820" cy="${HM_FT[4] - 106}" r="7" fill="#ef5f7a" class="hb-blink"/>
+    <g transform="translate(60 ${HM_FT[4] - 60})"><path d="M0 26 L20 0 H130 L110 26 Z" fill="#2f4a75"/><path d="M35 0 L15 26 M70 0 L50 26 M100 0 L80 26 M10 13 H120" stroke="#9fc0ea" stroke-width="2"/></g>`);
+  // 電梯井
+  P.push(`<rect x="872" y="${HM_FT[4]}" width="116" height="${HM_FT[1] + HM_FH - HM_FT[4]}" fill="#3a3f4b"/>
+    <path d="M900 ${HM_FT[4]} V${HM_FT[1] + HM_FH} M970 ${HM_FT[4]} V${HM_FT[1] + HM_FH}" stroke="#555b69" stroke-width="3"/>`);
+  [1, 2, 3, 4].forEach(f => P.push(`<rect x="862" y="${HM_FT[f] + 40}" width="14" height="236" fill="#c9ced8"/>`));
+
+  // ── 4F 股票交易室 ──
+  let y = HM_FT[4];
+  P.push(hmFloorShell(4, '#e9eef6', 'url(#hbCarpet)', night));
+  const candles = [...Array(9)].map((_, i) => {
+    const up = (i * 7 + (d.stockBal || 3)) % 3 !== 0, h = 18 + (i * 13) % 30, x = 412 + i * 22, top = y + 110 - (i * 9) % 40;
+    return `<path d="M${x + 6} ${top - 8} v${h + 16}" stroke="${up ? '#ef4444' : '#22c55e'}" stroke-width="2"/><rect x="${x}" y="${top}" width="12" height="${h}" fill="${up ? '#ef4444' : '#22c55e'}"/>`;
   }).join('');
-  return `<svg viewBox="0 0 ${HM_W} ${HM_H}" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="hmWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf3e7"/><stop offset="1" stop-color="#f8e8d6"/></linearGradient>
-      <pattern id="hmFloor" width="80" height="40" patternUnits="userSpaceOnUse"><rect width="80" height="40" fill="#e9d3b8"/><path d="M0 20 H80 M40 0 V20 M0 40 H80 M20 20 V40 M60 20 V40" stroke="#dcc2a3" stroke-width="1"/></pattern>
-      <linearGradient id="hmSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd4f5"/><stop offset="1" stop-color="#dff2fd"/></linearGradient></defs>
-    <rect width="${HM_W}" height="250" fill="url(#hmWall)"/><rect y="250" width="${HM_W}" height="${HM_H - 250}" fill="url(#hmFloor)"/>
-    <rect y="244" width="${HM_W}" height="8" fill="#c99b72"/>
-    <!-- 窗戶 -->
-    <rect x="430" y="40" width="180" height="140" rx="10" fill="url(#hmSky)" stroke="#fff" stroke-width="8"/><path d="M520 40 V180 M430 110 H610" stroke="#fff" stroke-width="6"/>
-    <circle cx="575" cy="75" r="14" fill="#ffe08a"/><ellipse cx="470" cy="140" rx="26" ry="10" fill="#fff" opacity=".9"/>
-    <!-- 招牌 -->
-    <rect x="40" y="40" width="250" height="56" rx="12" fill="#0a9396"/><text x="165" y="77" text-anchor="middle" font-size="26" font-weight="700" fill="#fff">📒 我的帳本辦公室</text>
-    <!-- 記帳桌 -->
-    <rect x="110" y="300" width="160" height="56" rx="8" fill="#c99b72"/><rect x="110" y="300" width="160" height="12" rx="6" fill="#d9ad84"/>
-    <rect x="150" y="282" width="46" height="24" rx="3" fill="#fff" stroke="#e0c7a8"/><path d="M173 282 V306" stroke="#e0c7a8"/><path d="M156 290 h12 M156 296 h12 M178 290 h12 M178 296 h10" stroke="#9aa3c4" stroke-width="2"/>
-    <rect x="212" y="286" width="22" height="18" rx="3" fill="#ffd66b"/><text x="223" y="300" text-anchor="middle" font-size="12">🧾</text>
-    <!-- 老闆桌 -->
-    <rect x="410" y="270" width="190" height="60" rx="8" fill="#a9785a"/><rect x="410" y="270" width="190" height="12" rx="6" fill="#bb8c6b"/>
-    <rect x="470" y="232" width="70" height="44" rx="4" fill="#2f3542"/><rect x="474" y="236" width="62" height="34" rx="2" fill="#7fd6d8"/><text x="505" y="259" text-anchor="middle" font-size="16" font-weight="700" fill="#2f3542">$</text>
-    <circle cx="575" cy="262" r="9" fill="#fff" stroke="#c99b72" stroke-width="2"/>
-    <!-- 白板 -->
-    <rect x="680" y="160" width="160" height="120" rx="8" fill="#fff" stroke="#c9b6a6" stroke-width="4"/>
-    <text x="760" y="184" text-anchor="middle" font-size="14" fill="#7b8094">支出前四名</text>${bars}
-    <!-- 股票螢幕 -->
-    <rect x="850" y="330" width="120" height="80" rx="6" fill="#2f3542"/><polyline points="860,395 880,380 900,388 920,360 940,368 960,345" fill="none" stroke="#8fd3b0" stroke-width="4" stroke-linecap="round"/>
-    <rect x="895" y="410" width="30" height="20" fill="#4a4a52"/>
-    <!-- 咖啡機、沙發、盆栽 -->
-    <rect x="40" y="150" width="80" height="90" rx="10" fill="#7a5c48"/><rect x="55" y="165" width="50" height="26" rx="4" fill="#2f3542"/><circle cx="80" cy="212" r="10" fill="#ef7d9a"/>
-    <rect x="250" y="440" width="170" height="60" rx="20" fill="#9fb7e8"/><rect x="250" y="420" width="170" height="34" rx="16" fill="#b8cbf0"/>
-    <rect x="920" y="200" width="44" height="40" rx="6" fill="#d98f5c"/><ellipse cx="930" cy="185" rx="16" ry="26" fill="#6aa86b"/><ellipse cx="955" cy="180" rx="16" ry="28" fill="#82be7c"/>
-  </svg>`;
+  P.push(`<rect x="390" y="${y + 56}" width="230" height="120" rx="8" fill="#1f2533" stroke="#4a5160" stroke-width="5"/>${candles}
+    <rect x="640" y="${y + 66}" width="120" height="100" rx="8" fill="#1f2533" stroke="#4a5160" stroke-width="5"/>
+    <text x="700" y="${y + 100}" text-anchor="middle" font-size="15" fill="#9aa3b5">股票帳戶</text>
+    <text x="700" y="${y + 132}" text-anchor="middle" font-size="22" font-weight="700" fill="#fca5a5">${d.stockBal != null ? hmShortMoney(d.stockBal) : '…'}</text>
+    <text x="700" y="${y + 156}" text-anchor="middle" font-size="13" fill="#9aa3b5">今年股息 ${hmShortMoney(d.divYear)}</text>
+    <rect x="220" y="${y + 66}" width="150" height="90" rx="8" fill="#1f2533" stroke="#4a5160" stroke-width="5"/>
+    <polyline points="232,${y + 136} 256,${y + 118} 280,${y + 126} 304,${y + 96} 328,${y + 104} 356,${y + 82}" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="200" y="${y + 18}" width="560" height="26" rx="6" fill="#111827"/>
+    <clipPath id="hbTick"><rect x="214" y="${y + 18}" width="546" height="26"/></clipPath><text clip-path="url(#hbTick)" y="${y + 37}" font-size="16" font-weight="700" fill="#fbbf24" font-family="monospace">
+      <tspan x="210">📈 股票帳戶 ${d.stockBal != null ? hmShortMoney(d.stockBal) : '…'} ▲　今年股息 ${hmShortMoney(d.divYear)}　長期投資 🐢　本月結餘 ${hmShortMoney(d.inc - d.exp)}</tspan>
+      <animate attributeName="x" from="760" to="-300" dur="14s" repeatCount="indefinite"/></text>
+    <rect x="200" y="${y + 18}" width="14" height="26" fill="#111827"/>
+    <rect x="250" y="${y + 196}" width="300" height="20" rx="6" fill="#8a6a52"/><rect x="262" y="${y + 214}" width="12" height="40" fill="#6f5442"/><rect x="526" y="${y + 214}" width="12" height="40" fill="#6f5442"/>
+    <rect x="300" y="${y + 184}" width="80" height="14" rx="3" fill="#d6dbe4"/><rect x="420" y="${y + 178}" width="44" height="20" rx="4" fill="#2f3542"/>
+    <g transform="translate(700 ${y + 248}) scale(.85)"><rect x="-44" y="-56" width="88" height="62" rx="10" fill="#7d8796"/><rect x="-36" y="-48" width="72" height="46" rx="6" fill="#9aa4b2"/>
+      <circle cx="0" cy="-25" r="14" fill="#c4cad4" stroke="#6b7482" stroke-width="3"/><path d="M0 -25 l9 -6" stroke="#6b7482" stroke-width="3"/></g>
+    ${hmPlant(800, y + 270, 0.9)}`);
+
+  // ── 3F 分析室 ──
+  y = HM_FT[3];
+  P.push(hmFloorShell(3, '#f5efe6', 'url(#hbWood)', night));
+  const cats = d.cats.slice(0, 4);
+  const cmax = cats.length ? cats[0][1] : 1;
+  const colors = ['#ef7d9a', '#ffb86b', '#7fb6f0', '#8fd3b0'];
+  const bars = cats.map(([n, v], i) => `<text x="214" y="${y + 92 + i * 30}" font-size="16" fill="#4a5568">${hmT(catText(n), 6)}</text>
+    <rect x="300" y="${y + 79 + i * 30}" width="150" height="16" rx="8" fill="#eef1f4"/><rect x="300" y="${y + 79 + i * 30}" width="${Math.max(10, 150 * v / cmax).toFixed(0)}" height="16" rx="8" fill="${colors[i]}"/>
+    <text x="500" y="${y + 92 + i * 30}" font-size="15" text-anchor="end" fill="#7b8094">${d.exp ? Math.round(v / d.exp * 100) : 0}%</text>`).join('')
+    || `<text x="350" y="${y + 120}" text-anchor="middle" font-size="20" fill="#a8978a">還沒有支出 ✏️</text>`;
+  // 圓餅圖
+  let acc = 0;
+  const pie = d.cats.slice(0, 4).map(([, v], i) => {
+    const a0 = acc / d.exp * Math.PI * 2 - Math.PI / 2; acc += v; const a1 = acc / d.exp * Math.PI * 2 - Math.PI / 2;
+    const cx = 590, cy = y + 120, r = 46, large = a1 - a0 > Math.PI ? 1 : 0;
+    return `<path d="M${cx} ${cy} L${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A${r} ${r} 0 ${large} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)} Z" fill="${colors[i]}"/>`;
+  }).join('');
+  const ang = (now.getHours() % 12 + now.getMinutes() / 60) / 12 * 360, mang = now.getMinutes() / 60 * 360;
+  P.push(`<rect x="196" y="${y + 50}" width="460" height="150" rx="10" fill="#c3ccd6"/><rect x="202" y="${y + 56}" width="448" height="138" rx="6" fill="#fff"/>
+    <rect x="330" y="${y + 40}" width="150" height="24" rx="6" fill="#9aa8b6"/><text x="405" y="${y + 58}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">本月支出分析</text>
+    ${bars}${d.exp ? `<circle cx="590" cy="${y + 120}" r="48" fill="#eef1f4"/>${pie}<circle cx="590" cy="${y + 120}" r="22" fill="#fff"/><text x="590" y="${y + 125}" text-anchor="middle" font-size="12" fill="#7b8094">${hmShortMoney(d.exp)}</text>` : ''}
+    <g transform="translate(760 ${y + 70})"><circle r="28" fill="#fff" stroke="#8a6a52" stroke-width="5"/><path d="M0 0 L0 -15" stroke="#3a3f4b" stroke-width="4" stroke-linecap="round" transform="rotate(${ang})"/><path d="M0 0 L0 -22" stroke="#3a3f4b" stroke-width="2.5" stroke-linecap="round" transform="rotate(${mang})"/><circle r="3" fill="#ef5f7a"/></g>
+    <g transform="translate(700 ${y + 110})"><rect width="120" height="150" rx="6" fill="#a9785a"/><rect x="8" y="10" width="104" height="60" fill="#f2e6d6"/><rect x="8" y="80" width="104" height="62" fill="#f2e6d6"/>
+      ${[0, 1, 2, 3, 4].map(i => `<rect x="${14 + i * 19}" y="${18 + (i % 2) * 4}" width="15" height="${48 - (i % 2) * 4}" rx="2" fill="${['#ef7d9a', '#7fb6f0', '#ffd66b', '#8fd3b0', '#a99cf0'][i]}"/>`).join('')}
+      ${[0, 1, 2, 3].map(i => `<rect x="${16 + i * 24}" y="${92}" width="20" height="46" rx="2" fill="${['#5b6cf0', '#f2a03d', '#2f9e7a', '#d94f8a'][i]}"/>`).join('')}</g>
+    <rect x="460" y="${y + 206}" width="220" height="18" rx="6" fill="#c99b72"/><rect x="472" y="${y + 222}" width="10" height="34" fill="#a9785a"/><rect x="658" y="${y + 222}" width="10" height="34" fill="#a9785a"/>
+    <rect x="530" y="${y + 176}" width="66" height="32" rx="4" fill="#2f3542"/><rect x="534" y="${y + 180}" width="58" height="24" rx="2" fill="#7fb6f0"/><rect x="520" y="${y + 206}" width="86" height="5" rx="2" fill="#9aa3b5"/>
+    <g transform="translate(640 ${y + 196})"><path d="M-8 -14 h16 l-2 14 h-12 Z" fill="#fff" stroke="#c9b6a6" stroke-width="2"/><path d="M8 -10 q8 0 6 6 q-2 4 -7 3" fill="none" stroke="#c9b6a6" stroke-width="2"/><path d="M-3 -18 q-3 -5 0 -9 M3 -18 q-3 -5 0 -9" stroke="#c9b6a6" stroke-width="1.5" fill="none" class="hb-steam"/></g>
+    ${hmPlant(100, y + 270, 0.9)}`);
+
+  // ── 2F 老闆辦公室 ──
+  y = HM_FT[2];
+  P.push(hmFloorShell(2, '#fbf3ea', 'url(#hbWood)', night));
+  const bal = d.inc - d.exp;
+  P.push(`${hmWindow(160, y + 56, 170, 120, night)}
+    <ellipse cx="460" cy="${y + 262}" rx="190" ry="26" fill="#d9a7b4" opacity=".55"/><ellipse cx="460" cy="${y + 262}" rx="160" ry="18" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="8 6" opacity=".6"/>
+    <g transform="translate(470 ${y + 70})"><rect x="-80" y="0" width="160" height="96" rx="8" fill="#c9a24a"/><rect x="-72" y="8" width="144" height="80" rx="4" fill="#fffaf0"/>
+      <text x="0" y="32" text-anchor="middle" font-size="15" fill="#8a6a52">本月結餘</text>
+      <text x="0" y="60" text-anchor="middle" font-size="24" font-weight="800" fill="${bal >= 0 ? '#dc2626' : '#16a34a'}">${bal >= 0 ? '+' : '−'}${hmShortMoney(Math.abs(bal))}</text>
+      <text x="0" y="80" text-anchor="middle" font-size="13" fill="#8a6a52">儲蓄率 ${d.inc ? Math.round(bal / d.inc * 100) + '%' : '—'}</text></g>
+    <rect x="360" y="${y + 196}" width="240" height="22" rx="8" fill="#7a5040"/><rect x="372" y="${y + 216}" width="216" height="44" rx="4" fill="#8f5e4a"/><rect x="380" y="${y + 224}" width="90" height="28" rx="3" fill="#7a5040"/><circle cx="460" cy="${y + 238}" r="3" fill="#e0c07a"/>
+    <rect x="430" y="${y + 160}" width="80" height="38" rx="4" fill="#2f3542"/><rect x="434" y="${y + 164}" width="72" height="30" rx="2" fill="#7fd6d8"/><text x="470" y="${y + 186}" text-anchor="middle" font-size="18" font-weight="800" fill="#0a5c5f">$</text>
+    <g transform="translate(560 ${y + 190})"><path d="M-6 -16 q-10 -14 6 -22 q14 6 4 22 Z" fill="#f7d36b"/><rect x="-10" y="-6" width="20" height="10" rx="2" fill="#5a4636"/></g>
+    <g transform="translate(720 ${y + 200})"><rect x="-90" y="-50" width="180" height="40" rx="16" fill="#e7a07a"/><rect x="-100" y="-14" width="200" height="40" rx="14" fill="#d98a64"/><rect x="-104" y="-36" width="24" height="60" rx="10" fill="#c97955"/><rect x="80" y="-36" width="24" height="60" rx="10" fill="#c97955"/>
+      <rect x="-50" y="-40" width="34" height="26" rx="8" fill="#fff3c8"/></g>
+    <rect x="590" y="${y + 70}" width="70" height="86" rx="6" fill="#fff" stroke="#c9a24a" stroke-width="5"/><path d="M600 ${y + 140} l14 -24 l12 14 l10 -20 l14 30 Z" fill="#8fd3b0"/><circle cx="645" cy="${y + 92}" r="8" fill="#ffd66b"/>
+    ${hmPlant(80, y + 270, 1)}
+    <g transform="translate(820 ${y + 270})"><rect x="-6" y="-120" width="12" height="120" fill="#6b5444"/><path d="M-30 -120 h60 l-14 -36 h-32 Z" fill="#ffe8b0" stroke="#d8b878" stroke-width="2"/>${night ? '<ellipse cx="0" cy="-100" rx="60" ry="40" fill="#fff3c0" opacity=".3"/>' : ''}<ellipse cx="0" cy="0" rx="22" ry="5" fill="#6b5444"/></g>`);
+
+  // ── 1F 記帳大廳 ──
+  y = HM_FT[1];
+  P.push(hmFloorShell(1, '#f3ece2', 'url(#hbTile)', night));
+  const notes = d.recs.filter(r => r.item).slice().sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : (b.row || 0) - (a.row || 0))).slice(0, 3);
+  const noteHtml = notes.map((r, i) => `<g transform="translate(${668 + i * 56} ${y + 84}) rotate(${[-4, 3, -2][i]})"><rect width="50" height="50" fill="${['#fff3a8', '#ffd1dc', '#c8f0ff'][i]}"/>
+    <circle cx="25" cy="4" r="4" fill="#ef5f7a"/><text x="25" y="24" text-anchor="middle" font-size="11" fill="#4a3b30">${hmT(r.item, 4)}</text>
+    <text x="25" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="${r.income ? '#dc2626' : r.expense ? '#16a34a' : '#6b7280'}">${r.income ? '+' + hmShortMoney(r.income) : r.expense ? '−' + hmShortMoney(r.expense) : '⇄'}</text></g>`).join('');
+  P.push(`<rect x="640" y="${y + 60}" width="200" height="110" rx="6" fill="#b98a5c"/><rect x="648" y="${y + 68}" width="184" height="94" rx="4" fill="#d9b48a"/>
+    <text x="740" y="${y + 80}" text-anchor="middle" font-size="12" fill="#6b4c36" font-weight="700">最新紀錄</text>${noteHtml}
+    <rect x="200" y="${y + 186}" width="240" height="70" rx="10" fill="#fff" stroke="#c9b6a6" stroke-width="3"/><rect x="200" y="${y + 186}" width="240" height="16" rx="8" fill="#0a9396"/>
+    <g transform="translate(260 ${y + 166})"><path d="M-30 0 Q0 -12 30 0 V24 Q0 12 -30 24 Z" fill="#fff" stroke="#9aa3c4" stroke-width="2"/><path d="M0 -6 V18" stroke="#9aa3c4" stroke-width="2"/><path d="M-24 4 h18 M-24 10 h16 M6 4 h18 M6 10 h14" stroke="#c9cfe0" stroke-width="2"/></g>
+    <g transform="translate(380 ${y + 168})"><rect x="-22" y="-6" width="44" height="28" rx="5" fill="#4a4a52"/><rect x="-14" y="-${12 + Math.min(d.todayCount, 6) * 5}" width="28" height="${10 + Math.min(d.todayCount, 6) * 5}" fill="#fff" stroke="#ddd"/>
+      <text x="0" y="16" text-anchor="middle" font-size="11" fill="#7fffd0">今天 ${d.todayCount} 筆</text></g>
+    <g transform="translate(560 ${y + 200})"><rect x="-38" y="-80" width="76" height="110" rx="10" fill="#7a5c48"/><rect x="-28" y="-68" width="56" height="30" rx="4" fill="#2f3542"/><text x="0" y="-48" text-anchor="middle" font-size="12" fill="#7fffd0">COFFEE</text>
+      <rect x="-14" y="-26" width="28" height="12" fill="#3a2f2b"/><path d="M-8 -6 h16 l-2 14 h-12 Z" fill="#fff"/><path d="M-3 -10 q-3 -5 0 -10 M4 -10 q-3 -5 0 -10" stroke="#d9cfc5" stroke-width="2" fill="none" class="hb-steam"/></g>
+    <g transform="translate(480 ${y + 40})"><rect x="-56" y="0" width="112" height="70" rx="6" fill="#fff" stroke="#c9b6a6" stroke-width="3"/>
+      <text x="0" y="24" text-anchor="middle" font-size="14" fill="#7b8094">本月紀錄</text><text x="0" y="54" text-anchor="middle" font-size="26" font-weight="800" fill="#0a9396">${d.count} 筆</text></g>
+    <g transform="translate(110 ${y + 66})"><rect x="-60" y="0" width="120" height="206" rx="6" fill="rgba(200,230,245,.55)" stroke="#9ab7c6" stroke-width="5"/><path d="M0 0 V206" stroke="#9ab7c6" stroke-width="4"/><circle cx="-10" cy="110" r="4" fill="#9ab7c6"/><circle cx="10" cy="110" r="4" fill="#9ab7c6"/>
+      <text x="0" y="-8" text-anchor="middle" font-size="13" fill="#6b5444">入口</text></g>`);
+  // 街道
+  y = HM_FT[1] + HM_FH;
+  P.push(`<rect x="0" y="${y}" width="${HM_W}" height="${HM_H - y}" fill="#c9ced8"/><rect x="0" y="${y}" width="${HM_W}" height="22" fill="#b6bcc8"/>
+    ${[...Array(12)].map((_, i) => `<path d="M${i * 90 + 10} ${y + 22} v${HM_H - y - 22}" stroke="#bcc2cd" stroke-width="2"/>`).join('')}
+    <g transform="translate(250 ${y + 152}) scale(.62)"><rect x="-8" y="-90" width="16" height="90" fill="#8a5a44"/><circle cx="0" cy="-110" r="46" fill="#6fb06f"/><circle cx="-26" cy="-92" r="30" fill="#5f9e62"/><circle cx="28" cy="-94" r="32" fill="#82be7c"/></g>
+    <g transform="translate(560 ${y + 130})"><rect x="-4" y="-130" width="8" height="130" fill="#4a4f5c"/><rect x="-18" y="-140" width="36" height="16" rx="6" fill="#4a4f5c"/><ellipse cx="0" cy="-124" rx="14" ry="5" fill="${night ? '#fff3b0' : '#e9ecf1'}"/>${night ? '<ellipse cx="0" cy="-60" rx="50" ry="70" fill="#fff3b0" opacity=".18"/>' : ''}</g>
+    <g transform="translate(760 ${y + 120})"><rect x="-4" y="-40" width="8" height="40" fill="#4a4f5c"/><rect x="-24" y="-80" width="48" height="40" rx="12" fill="#ef5f7a"/><rect x="-14" y="-66" width="28" height="5" rx="2" fill="#7a2f3d"/><text x="0" y="-48" text-anchor="middle" font-size="10" fill="#fff">帳單</text></g>`);
+  $('hmScene').querySelector('.hm-room').innerHTML = `<svg viewBox="0 0 ${HM_W} ${HM_H}" preserveAspectRatio="none" aria-hidden="true">${P.join('')}</svg>`;
 }
 function hmBuildScene() {
   const box = $('hmScene');
-  box.innerHTML = `<div class="hm-room"></div>`;
+  box.innerHTML = `<div class="hm-room"></div><div class="hm-lift"><div class="hm-lift-doors"><i></i><i></i></div><span id="hmLiftInd" class="hm-lift-ind">1F</span></div>`;
+  hmLift.el = box.querySelector('.hm-lift');
+  hmLift.doorEl = box.querySelector('.hm-lift-doors');
+  hmLift.el.style.top = (hmLift.y / HM_H * 100) + '%';
   hmActors = {};
   HM_ACTORS.forEach(c => {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'hm-actor';
     el.innerHTML = `<span class="hm-fig">${hmPerson(c.look)}</span><span class="hm-tag">${esc(c.name)}</span><span class="hm-bub"></span>`;
-    const a = { ...c, el, figEl: el.querySelector('.hm-fig'), bubEl: el.querySelector('.hm-bub'), pos: HM_SPOTS[c.seat].slice(), busy: false };
+    const s = hmSpot(c.seat);
+    const a = { ...c, el, figEl: el.querySelector('.hm-fig'), bubEl: el.querySelector('.hm-bub'), pos: [s.x, hmFeet(s.f)], floor: s.f, busy: false };
     el.addEventListener('click', () => { if (hmData_) { hmSay(c.id, `${c.name}（${c.role}）：${hmLine(c.id, hmData_)}`, 3600); el.classList.add('happy'); setTimeout(() => el.classList.remove('happy'), 900); } });
     box.appendChild(el);
     hmActors[c.id] = a;
@@ -250,12 +463,11 @@ function hmBuildScene() {
   hmBuilt = true;
 }
 
-// ── 首頁（會被 renderCurrentTab 呼叫）───────────────────────────
 const HM_COLORS = ['#ef7d9a', '#ffb86b', '#ffd66b', '#8fd3b0', '#7fb6f0', '#a99cf0', '#f2a3c9', '#9fd8cb', '#c9b6a6'];
 function renderHome() {
   if (!hmBuilt) hmBuildScene();
   const d = hmData_ = hmData();
-  $('hmScene').querySelector('.hm-room').innerHTML = hmRoomSvg(d);
+  hmDrawBuilding(d);
   if (!hmRaf) hmRaf = requestAnimationFrame(hmTick);
 
   const bal = d.inc - d.exp;
