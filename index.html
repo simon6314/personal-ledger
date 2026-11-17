@@ -7,7 +7,7 @@
   <title>我的帳本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026111705">
+  <link rel="stylesheet" href="style.css?v=2026111706">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -35,6 +35,11 @@
 <main>
   <!-- 明細 -->
   <section id="tab-home" class="tab-panel">
+    <div class="hm-quick">
+      <button type="button" class="hm-q exp" data-type="支出">🧾 記支出</button>
+      <button type="button" class="hm-q inc" data-type="收入">💰 記收入</button>
+      <button type="button" class="hm-q xfer" data-type="轉帳">🔁 記轉帳</button>
+    </div>
     <div id="hmScene" class="hm-scene" aria-label="我的帳本辦公室"></div>
     <p class="hm-hint">點一下角色，聽聽他們怎麼說 👆</p>
     <div class="panel-head"><h2 id="hmTitle">本月收支總覽</h2></div>
@@ -237,7 +242,7 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111705"></script>
-<script src="home.js?v=2026111705"></script>
+<script src="app.js?v=2026111706"></script>
+<script src="home.js?v=2026111706"></script>
 </body>
 </html>

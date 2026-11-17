@@ -1098,6 +1098,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!getToken()) return openTokenModal();
     openRecordModal(null);
   });
+  // 大樓頁的快速記帳：直接選好類型開表單，存完留在大樓看大家的反應
+  document.querySelectorAll('.hm-q').forEach(b => b.addEventListener('click', () => {
+    if (!getToken()) return openTokenModal();
+    openRecordModal(null);
+    setType(b.dataset.type);
+  }));
   $('btnSettings').addEventListener('click', openSettings);
   $('recItem').addEventListener('input', onItemInput);
   $('recCategory').addEventListener('input', () => { if ($('recCategory').value.trim() !== autoCategory) autoCategory = ''; });

@@ -717,11 +717,22 @@ function hmJoy(id, ms = 1400) {
   a.el.classList.add('happy');
   setTimeout(() => a.el.classList.remove('happy'), ms);
 }
+// 把某一層捲到畫面中間（已經看得到就不捲）
+function hmShowFloor(f) {
+  const box = $('hmScene');
+  if (!box) return;
+  const rc = box.getBoundingClientRect();
+  const y = rc.top + (HM_FT[f] + HM_FH / 2) / HM_H * rc.height;
+  const fh = HM_FH / HM_H * rc.height;
+  if (y - fh / 2 >= 60 && y + fh / 2 <= window.innerHeight) return;
+  window.scrollTo({ top: window.scrollY + y - window.innerHeight / 2, behavior: 'smooth' });
+}
 async function hmReact(r, edited, more) {
   const d = hmData_;
   const amt = Number(r.expense || r.income || r.transfer) || 0;
   const item = String(r.item || '').slice(0, 10);
   hmNext = performance.now() + 9000;          // 先暫停閒晃，讓大家專心演這一筆
+  hmShowFloor(edited ? hmActors.book.floor : r.type === '轉帳' ? 5 : 1);
   const book = hmActors.book, fl1 = hmFL(1);
   if (edited) {
     hmSay('book', `「${item}」改好了 ✏️`, 3000);
@@ -773,6 +784,7 @@ async function hmReact(r, edited, more) {
   if (amt >= Math.max(3000, avg * 3) && !book.busy && !hmActors.me.busy && hmActors.me.floor === 2) {
     book.busy = true; hmActors.me.busy = true;
     try {
+      hmShowFloor(2);
       await hmGo('book', 'meetBook');
       book.figEl.classList.remove('flip');
       hmActors.me.figEl.classList.add('flip');
