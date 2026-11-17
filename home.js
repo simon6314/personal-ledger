@@ -95,9 +95,14 @@ function hmData() {
   const xferTotal = sum(xfers, 'transfer');
   const routes = groupSum(xfers, r => `${r.account || '?'}→${r.toAccount || '?'}`, 'transfer');
   const latestXfer = xfers.slice().sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : (b.row || 0) - (a.row || 0)))[0] || null;
-  let accBal = [];
-  if (allLoaded && accounts.length) accBal = Object.entries(balancesAsOf(today)).filter(([, v]) => Math.round(v)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4);
-  return { recs, inc, exp, cats, incCats, todayCount, latest, biggest, isNow, prevSame, prevTotal, prevSheet, stockBal, divYear, count: recs.length, xfers, xferTotal, routes, latestXfer, accBal };
+  // 帳戶餘額不含股票帳戶（股票在股票交易室看）
+  let accBal = [], cashTotal = null;
+  if (allLoaded && accounts.length) {
+    const nonStock = Object.entries(balancesAsOf(today)).filter(([n, v]) => !isStockAcc(n) && Math.round(v));
+    cashTotal = nonStock.reduce((s, [, v]) => s + v, 0);
+    accBal = nonStock.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4);
+  }
+  return { recs, inc, exp, cats, incCats, todayCount, latest, biggest, isNow, prevSame, prevTotal, prevSheet, stockBal, divYear, count: recs.length, xfers, xferTotal, routes, latestXfer, accBal, cashTotal };
 }
 
 // ── 台詞 ────────────────────────────────────────────────────
@@ -453,7 +458,7 @@ function hmDrawBuilding(d) {
     <g transform="translate(600 ${fl})"><ellipse cx="0" cy="0" rx="42" ry="5" fill="rgba(90,70,50,.14)"/>
       <rect x="-36" y="-176" width="72" height="176" rx="8" fill="#5f9ee6"/><rect x="-36" y="-176" width="72" height="26" rx="8" fill="#3f78bd"/><text x="0" y="-156" text-anchor="middle" font-size="18" font-weight="800" fill="#fff">ATM</text>
       <rect x="-26" y="-142" width="52" height="40" rx="4" fill="#1f2a3a"/><text x="0" y="-126" text-anchor="middle" font-size="12" fill="#9aa8b6">總餘額</text>
-      <text x="0" y="-108" text-anchor="middle" font-size="14" font-weight="800" fill="#7fffd0">${d.accBal.length ? hmShortMoney(d.accBal.reduce((s, [, v]) => s + v, 0)) : '***'}</text>
+      <text x="0" y="-108" text-anchor="middle" font-size="14" font-weight="800" fill="#7fffd0">${d.cashTotal != null ? hmShortMoney(d.cashTotal) : '***'}</text>
       <rect x="-26" y="-94" width="52" height="30" rx="4" fill="#dfe5eb"/>${[...Array(9)].map((_, i) => `<rect x="${-22 + (i % 3) * 16}" y="${-91 + Math.floor(i / 3) * 9}" width="12" height="6" rx="1.5" fill="#9aa8b6"/>`).join('')}
       <rect x="-20" y="-56" width="40" height="6" rx="3" fill="#1f2a3a"/><rect x="-14" y="-52" width="28" height="12" rx="2" fill="#a8e0c0" class="hb-cash"/>
       <rect x="-30" y="-30" width="60" height="24" rx="4" fill="#3f78bd"/></g>
