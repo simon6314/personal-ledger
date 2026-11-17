@@ -396,3 +396,57 @@ main { position: relative; z-index: 1; }
 .rec-bal { font-size: 12px; color: var(--muted, #64748b); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .rec-bal.bal-pos { color: #dc2626; }
 .rec-bal.bal-neg { color: #16a34a; font-weight: 600; }
+
+/* ── 首頁：我的帳本辦公室 ── */
+.hm-scene { position: relative; width: 100%; aspect-ratio: 1000 / 520; border-radius: var(--radius); overflow: hidden; background: #f8e8d6; box-shadow: 0 4px 16px rgba(60, 50, 90, .12); margin-top: 6px; }
+.hm-room, .hm-room svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hm-actor { position: absolute; width: 9%; aspect-ratio: 80 / 92; padding: 0; border: 0; background: none; transform: translate(-50%, -100%); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hm-fig { position: absolute; inset: 0; display: block; transition: transform .2s; }
+.hm-fig.flip { transform: scaleX(-1); }
+.hm-fig svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 100%; }
+.hm-eye-h { display: none; }
+.hm-actor.happy .hm-eye, .hm-actor.rest .hm-eye { display: none; }
+.hm-actor.happy .hm-eye-h, .hm-actor.rest .hm-eye-h { display: inline; }
+.hm-actor.walk svg { animation: hmBob .34s ease-in-out infinite alternate; }
+.hm-actor.happy svg { animation: hmJump .5s ease-in-out 2; }
+.hm-actor.rest svg { transform: rotate(-8deg) translateY(4%); }
+.hm-arm { transform-box: view-box; }
+.hm-arm-l { transform-origin: 25.5px 61px; } .hm-arm-r { transform-origin: 54.5px 61px; }
+.hm-actor.walk .hm-arm-l { animation: hmSwL .34s ease-in-out infinite alternate; }
+.hm-actor.walk .hm-arm-r { animation: hmSwR .34s ease-in-out infinite alternate; }
+.hm-actor.happy .hm-arm-r { transform: rotate(-150deg); }
+@keyframes hmBob { from { transform: translateY(0) rotate(-3deg); } to { transform: translateY(-6%) rotate(3deg); } }
+@keyframes hmJump { 50% { transform: translateY(-14%); } }
+@keyframes hmSwL { from { transform: rotate(14deg); } to { transform: rotate(-14deg); } }
+@keyframes hmSwR { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+.hm-tag { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: clamp(9px, 1.4vw, 13px); background: rgba(255, 255, 255, .85); border-radius: 6px; padding: 0 .4em; white-space: nowrap; color: #5a4636; pointer-events: none; }
+.hm-bub { position: absolute; left: 50%; bottom: 104%; transform: translateX(-50%) scale(.6); opacity: 0; pointer-events: none; background: #fff; border: 1.5px solid #e6d4c4; border-radius: 1em; padding: .3em .7em; font-size: clamp(11px, 1.7vw, 15px); font-weight: 600; color: #4a3a30; white-space: nowrap; box-shadow: 0 2px 6px rgba(90, 60, 40, .15); transition: opacity .2s, transform .2s; z-index: 2; }
+.hm-bub.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.hm-bub.below { bottom: auto; top: 104%; }
+.hm-hint { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
+.hm-vs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; display: grid; gap: 8px; }
+.hm-vs-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
+.hm-vs-row i { height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; }
+.hm-vs-row b { display: block; height: 100%; border-radius: 7px; }
+.hm-vs-row b.in { background: #dc2626; } .hm-vs-row b.out { background: #16a34a; }   /* 跟上面卡片一致：收入紅、支出綠 */
+.hm-vs-row em { font-style: normal; font-variant-numeric: tabular-nums; font-weight: 700; }
+.hm-note { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.hm-pie-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+@media (max-width: 560px) { .hm-pie-row { grid-template-columns: 1fr; } .hm-pie { max-width: 220px; margin: 0 auto; } }
+.hm-shares { display: grid; gap: 7px; }
+#hmIncList { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.hm-share { display: grid; grid-template-columns: 10px minmax(5em, 8em) 1fr 3em auto; align-items: center; gap: 8px; font-size: 14px; }
+.hm-share > i { width: 10px; height: 10px; border-radius: 50%; }
+.hm-share span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-share .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; font-style: normal; }
+.hm-share .bar b { display: block; height: 100%; border-radius: 5px; }
+.hm-share strong { text-align: right; font-variant-numeric: tabular-nums; }
+.hm-share small { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 6.5em; }
+@media (max-width: 420px) { .hm-share { grid-template-columns: 10px 6.6em 1fr 2.6em; } .hm-share small { display: none; } }
+.hm-trend { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
+@media (prefers-reduced-motion: reduce) { .hm-actor svg, .hm-arm { animation: none !important; } }
+
+.hm-bub.edge-r { left: auto; right: -10%; transform: scale(.6); transform-origin: right bottom; }
+.hm-bub.edge-r.show { transform: scale(1); }
+.hm-bub.edge-l { left: -10%; transform: scale(.6); transform-origin: left bottom; }
+.hm-bub.edge-l.show { transform: scale(1); }

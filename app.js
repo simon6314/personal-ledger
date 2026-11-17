@@ -289,7 +289,7 @@ async function switchMonth(sheet) {
 }
 
 // ── 分頁切換 ────────────────────────────────────────────────
-let activeTab = 'records';
+let activeTab = 'home';
 function switchTab(name) {
   activeTab = name;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -301,6 +301,7 @@ function switchTab(name) {
 
 const LOADING_TARGET = { annual: 'yCats', assets: 'aAccounts' };
 function renderCurrentTab() {
+  if (activeTab === 'home') return typeof renderHome === 'function' ? renderHome() : null;
   if (activeTab === 'records') return renderRecords();
   if (activeTab === 'analysis') return renderAnalysis();   // 只用本月資料，不需等全部載入
   if (!allLoaded) {
@@ -1203,6 +1204,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal').forEach(m =>
     m.addEventListener('click', e => { if (e.target === m && m.id !== 'tokenModal') closeModal(m.id); }));
 
-  switchTab('records');
+  switchTab('home');
   init();
 });
