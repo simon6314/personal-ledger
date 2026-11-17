@@ -461,6 +461,11 @@ main { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .hb-car, .hb-leaf, .hb-tree, .hb-steam, .hb-drip { animation: none; } }
 .hm-actor.cup .hm-fig::after { content: '☕'; position: absolute; right: -14%; top: 54%; font-size: clamp(10px, 2.6vw, 16px); }
 .hm-fig.flip::after { transform: scaleX(-1); }
+/* Gemini 的角色圖原本是面向左邊，跟手繪角色（面向右）相反，所以預設先翻過來，往左走時再翻回去 */
+.hm-actor.img .hm-fig { transform: scaleX(-1); }
+.hm-actor.img .hm-fig.flip { transform: none; }
+.hm-actor.img .hm-fig::after { transform: scaleX(-1); }
+.hm-actor.img .hm-fig.flip::after { transform: none; }
 .hm-actor.img .hm-fig > * { filter: drop-shadow(0 2px 1.5px rgba(70, 50, 30, .25)); }
 .hm-actor.img.rest .hm-fig > * { transform: rotate(-6deg) translateY(3%); }
 .hm-actor.dog.walk .hm-fig > * { animation: hmTrot .22s ease-in-out infinite alternate; }
