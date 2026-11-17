@@ -805,6 +805,82 @@ async function hmReact(r, edited, more) {
   }
 }
 
+// ── 下方資訊：每一區都能點開看細項 ──────────────────────────────
+const hmOpen = { exp: null, inc: null, xfer: null, month: null, card: null };
+function hmToggle(kind, key) {
+  hmOpen[kind] = hmOpen[kind] === key ? null : key;
+  renderHome();
+}
+const hmByDate = list => list.slice().sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : (b.row || 0) - (a.row || 0)));
+function hmRecList(list, empty = '沒有紀錄', keep = false) {
+  return list.length ? `<div class="hm-detail">${(keep ? list : hmByDate(list)).map(r => rowHtml(r, true)).join('')}</div>` : `<div class="hm-detail"><div class="empty">${empty}</div></div>`;
+}
+function hmShareRow(kind, key, v, total, color, label, list) {
+  const open = hmOpen[kind] === key;
+  return `<div class="hm-share hm-click${open ? ' open' : ''}" role="button" tabindex="0" data-hm="${kind}" data-key="${esc(key)}">
+      <i style="background:${color}"></i><span>${esc(label)} <em class="hm-n">${list.length} 筆</em></span>
+      <em class="bar"><b style="width:${total ? (v / total * 100).toFixed(1) : 0}%;background:${color}"></b></em><strong>${total ? Math.round(v / total * 100) : 0}%</strong><small>${money(v)}</small><u class="hm-chev">›</u></div>
+    ${open ? hmRecList(list) : ''}`;
+}
+function hmCardDetail(d, expRecs, incRecs) {
+  const k = hmOpen.card;
+  if (!k) return '';
+  if (k === 'inc') return `<p class="hm-note">💚 收入 ${incRecs.length} 筆，共 ${money(d.inc)}</p>${hmRecList(incRecs, '這個月還沒有收入')}`;
+  if (k === 'exp') {
+    const big = expRecs.slice().sort((a, b) => b.expense - a.expense).slice(0, 10);
+    const days = d.isNow ? Number(todayIso().slice(8)) : new Set(expRecs.map(r => r.iso)).size || 1;
+    return `<p class="hm-note">🧾 支出 ${expRecs.length} 筆，平均每筆 ${money(expRecs.length ? d.exp / expRecs.length : 0)}，平均每天 ${money(d.exp / Math.max(1, days))}</p>
+      <p class="hm-note">金額最大的 ${big.length} 筆：</p>${hmRecList(big, '這個月還沒有支出', true)}`;
+  }
+  const sorted = months.slice().sort((a, b) => sheetOrder(a) - sheetOrder(b));
+  const end = sorted.indexOf(current);
+  const six = sorted.slice(Math.max(0, end - 5), end + 1).filter(m => Array.isArray(monthData[m]));
+  const stat = m => { const rs = monthData[m].filter(r => r.type !== '轉帳'); const i = sum(rs, 'income'), e = sum(rs, 'expense'); return { i, e, b: i - e, rate: i ? Math.round((i - e) / i * 100) : null }; };
+  if (k === 'bal') return `<div class="hm-calc">
+      <div><span>💚 收入</span><b class="amt-inc">${money(d.inc)}</b></div>
+      <div><span>🧾 支出</span><b class="amt-exp">− ${money(d.exp)}</b></div>
+      <div class="sum"><span>🌟 結餘</span><b class="${d.inc - d.exp >= 0 ? 'amt-inc' : 'amt-exp'}">${money(d.inc - d.exp)}</b></div>
+      ${d.xfers.length ? `<div class="muted"><span>🔁 轉帳（不計入）</span><b>${money(d.xferTotal)}</b></div>` : ''}</div>`;
+  return `<div class="hm-calc">${six.slice().reverse().map(m => { const st = stat(m); return `<div${m === current ? ' class="sum"' : ''}><span>${esc(m.replace(/^\d{4}\//, ''))}</span><b class="${st.rate == null ? '' : st.rate >= 0 ? 'amt-inc' : 'amt-exp'}">${st.rate == null ? '—' : st.rate + '%'}</b></div>`; }).join('')}</div>
+    <p class="hm-note">儲蓄率 =（收入 − 支出）÷ 收入</p>`;
+}
+function hmMonthRow(m) {
+  const rs = monthData[m].filter(r => r.type !== '轉帳');
+  const i = sum(rs, 'income'), e = sum(rs, 'expense');
+  const open = hmOpen.month === m;
+  let detail = '';
+  if (open) {
+    const cats = groupSum(rs.filter(r => Number(r.expense) > 0), r => r.category || '未分類', 'expense').slice(0, 5);
+    detail = `<div class="hm-detail hm-mdetail">
+      ${cats.map(([n, v]) => `<div class="hm-mcat"><span>${esc(catText(n))}</span><em class="bar"><b style="width:${e ? (v / e * 100).toFixed(1) : 0}%"></b></em><small>${money(v)}</small></div>`).join('') || '<div class="empty">沒有支出</div>'}
+      <p class="hm-note">共 ${monthData[m].length} 筆${i ? `，儲蓄率 ${Math.round((i - e) / i * 100)}%` : ''}</p>
+      ${m !== current ? `<button type="button" class="btn hm-go" data-hm-go="${esc(m)}">切換到 ${esc(m.replace(/^\d{4}\//, ''))} 👉</button>` : ''}</div>`;
+  }
+  return `<div class="hm-month hm-click${open ? ' open' : ''}${m === current ? ' cur' : ''}" role="button" tabindex="0" data-hm="month" data-key="${esc(m)}">
+      <span>${esc(m.replace(/^\d{4}\//, ''))}</span><b class="amt-inc">+${hmShortMoney(i)}</b><b class="amt-exp">−${hmShortMoney(e)}</b><b class="${i - e >= 0 ? 'amt-inc' : 'amt-exp'}">${i - e >= 0 ? '+' : '−'}${hmShortMoney(Math.abs(i - e))}</b><u class="hm-chev">›</u></div>${detail}`;
+}
+// 點擊：展開／收合、開紀錄、切換月份
+document.addEventListener('DOMContentLoaded', () => {
+  const box = $('tab-home');
+  if (!box) return;
+  const act = e => {
+    const rec = e.target.closest('.rec');
+    if (rec && box.contains(rec)) {
+      const r = pool().find(x => x.sheet === rec.dataset.sheet && String(x.row) === rec.dataset.row);
+      if (r) openRecordModal(r);
+      return;
+    }
+    const go = e.target.closest('[data-hm-go]');
+    if (go) { hmOpen.month = null; switchMonth(go.dataset.hmGo); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const card = e.target.closest('.hm-card');
+    if (card) return hmToggle('card', card.dataset.card);
+    const row = e.target.closest('[data-hm]');
+    if (row) hmToggle(row.dataset.hm, row.dataset.key);
+  };
+  box.addEventListener('click', act);
+  box.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-hm], .hm-card')) { e.preventDefault(); act(e); } });
+});
+
 const HM_COLORS = ['#ef7d9a', '#ffb86b', '#ffd66b', '#8fd3b0', '#7fb6f0', '#a99cf0', '#f2a3c9', '#9fd8cb', '#c9b6a6'];
 function renderHome() {
   if (!hmBuilt) hmBuildScene();
@@ -828,37 +904,51 @@ function renderHome() {
     <div class="hm-vs-row"><span>🧾 支出</span><i><b class="out" style="width:${(d.exp / mx * 100).toFixed(1)}%"></b></i><em>${hmShortMoney(d.exp)}</em></div>
     ${d.prevSame != null && d.isNow ? `<p class="hm-note">上個月同期（1～${Number(todayIso().slice(8))} 號）支出 ${money(d.prevSame)}，這個月${d.exp >= d.prevSame ? '多' : '少'} <b class="${d.exp >= d.prevSame ? 'amt-exp' : 'amt-inc'}">${money(Math.abs(d.exp - d.prevSame))}</b></p>` : ''}
     ${d.prevTotal != null && !d.isNow ? `<p class="hm-note">上個月總支出 ${money(d.prevTotal)}</p>` : ''}`;
-  // 支出占比
+  // 支出占比（點一下分類展開這個分類的每一筆）
   const top = d.cats.slice(0, 8);
+  const restCats = new Set(d.cats.slice(8).map(([n]) => n));
   const rest = d.cats.slice(8).reduce((s, [, v]) => s + v, 0);
   const pie = rest ? [...top, ['其他分類', rest]] : top;
-  $('hmExpList').innerHTML = pie.length ? pie.map(([n, v], i) => `
-    <div class="hm-share"><i style="background:${HM_COLORS[i % HM_COLORS.length]}"></i><span>${esc(n === '其他分類' ? '🫧 其他分類' : catText(n))}</span>
-      <em class="bar"><b style="width:${(v / d.exp * 100).toFixed(1)}%;background:${HM_COLORS[i % HM_COLORS.length]}"></b></em><strong>${Math.round(v / d.exp * 100)}%</strong><small>${money(v)}</small></div>`).join('')
-    : '<div class="empty">這個月還沒有支出</div>';
+  const expRecs = d.recs.filter(r => r.type !== '轉帳' && Number(r.expense) > 0);
+  const incRecs = d.recs.filter(r => r.type !== '轉帳' && Number(r.income) > 0);
+  $('hmExpList').innerHTML = pie.length ? pie.map(([n, v], i) => {
+    const list = n === '其他分類' ? expRecs.filter(r => restCats.has(r.category || '未分類')) : expRecs.filter(r => (r.category || '未分類') === n);
+    return hmShareRow('exp', n, v, d.exp, HM_COLORS[i % HM_COLORS.length], n === '其他分類' ? '🫧 其他分類' : catText(n), list);
+  }).join('') : '<div class="empty">這個月還沒有支出</div>';
   $('hmExpPie').parentElement.classList.toggle('hidden', !pie.length || typeof Chart === 'undefined');
   if (pie.length) drawChart('hmExpPie', {
     type: 'doughnut',
     data: { labels: pie.map(([n]) => n), datasets: [{ data: pie.map(([, v]) => v), backgroundColor: pie.map((_, i) => HM_COLORS[i % HM_COLORS.length]), borderWidth: 2, borderColor: '#fff' }] },
-    options: { cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.label}：${money(c.raw)}（${Math.round(c.raw / d.exp * 100)}%）` } } } },
+    options: { cutout: '62%', onClick: (e, els) => { if (els[0]) hmToggle('exp', pie[els[0].index][0]); },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.label}：${money(c.raw)}（${Math.round(c.raw / d.exp * 100)}%）` } } } },
   });
   // 收入來源
-  $('hmIncList').innerHTML = d.incCats.length ? d.incCats.map(([n, v], i) => `
-    <div class="hm-share"><i style="background:#f87171"></i><span>${esc(catText(n))}</span>
-      <em class="bar"><b style="width:${(v / d.inc * 100).toFixed(1)}%;background:#dc2626"></b></em><strong>${Math.round(v / d.inc * 100)}%</strong><small>${money(v)}</small></div>`).join('')
+  $('hmIncList').innerHTML = d.incCats.length ? d.incCats.map(([n, v]) =>
+    hmShareRow('inc', n, v, d.inc, '#dc2626', catText(n), incRecs.filter(r => (r.category || '未分類') === n))).join('')
     : '<div class="empty">這個月還沒有收入</div>';
+  // 本月轉帳（依路線，點一下展開）
+  $('hmXferList').innerHTML = d.routes.length ? d.routes.map(([k, v]) =>
+    hmShareRow('xfer', k, v, d.xferTotal, '#8a5fb5', k.replace('→', ' → '), d.xfers.filter(r => `${r.account || '?'}→${r.toAccount || '?'}` === k))).join('')
+    : '<div class="empty">這個月還沒有轉帳</div>';
+  $('hmXferNote').textContent = d.xfers.length ? `共 ${d.xfers.length} 筆、${money(d.xferTotal)}（轉帳不算收入或支出）` : '';
+  // 上方四張卡片的細項
+  $('hmCardDetail').innerHTML = hmCardDetail(d, expRecs, incRecs);
+  document.querySelectorAll('#tab-home .hm-card').forEach(c => c.classList.toggle('open', hmOpen.card === c.dataset.card));
   // 近 6 個月
   const sorted = months.slice().sort((a, b) => sheetOrder(a) - sheetOrder(b));
   const end = sorted.indexOf(current);
   const six = sorted.slice(Math.max(0, end - 5), end + 1).filter(m => Array.isArray(monthData[m]));
   const val = (m, k) => sum(monthData[m].filter(r => r.type !== '轉帳'), k);
-  $('hmTrendWrap').classList.toggle('hidden', six.length < 2 || typeof Chart === 'undefined');
+  $('hmTrendWrap').classList.toggle('hidden', six.length < 1);
+  $('hmTrend').parentElement.classList.toggle('hidden', six.length < 2 || typeof Chart === 'undefined');
+  $('hmMonthList').innerHTML = six.slice().reverse().map(m => hmMonthRow(m)).join('');
   if (six.length >= 2) drawChart('hmTrend', {
     type: 'bar',
     data: { labels: six.map(m => m.replace(/^\d{4}\//, '')), datasets: [
       { label: '收入', data: six.map(m => val(m, 'income')), backgroundColor: '#f87171', borderRadius: 6 },
       { label: '支出', data: six.map(m => val(m, 'expense')), backgroundColor: '#4ade80', borderRadius: 6 }] },
-    options: { plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}：${money(c.raw)}` } } },
+    options: { onClick: (e, els) => { if (els[0]) hmToggle('month', six[els[0].index]); },
+      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}：${money(c.raw)}` } } },
       scales: { y: { ticks: { callback: v => hmShortMoney(v) } } } },
   });
 }

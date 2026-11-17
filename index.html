@@ -7,7 +7,7 @@
   <title>我的帳本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026111709">
+  <link rel="stylesheet" href="style.css?v=2026111710">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -44,22 +44,28 @@
     <p class="hm-hint">點一下角色，聽聽他們怎麼說 👆</p>
     <div class="panel-head"><h2 id="hmTitle">本月收支總覽</h2></div>
     <section class="summary">
-      <div class="card"><span>💚 收入</span><strong id="hmInc" class="amt-inc">-</strong></div>
-      <div class="card"><span>🧾 支出</span><strong id="hmExp" class="amt-exp">-</strong></div>
-      <div class="card"><span>🌟 結餘</span><strong id="hmBal">-</strong></div>
-      <div class="card"><span>🐷 儲蓄率</span><strong id="hmRate">-</strong></div>
+      <div class="card hm-card" data-card="inc" role="button" tabindex="0"><span>💚 收入 ›</span><strong id="hmInc" class="amt-inc">-</strong></div>
+      <div class="card hm-card" data-card="exp" role="button" tabindex="0"><span>🧾 支出 ›</span><strong id="hmExp" class="amt-exp">-</strong></div>
+      <div class="card hm-card" data-card="bal" role="button" tabindex="0"><span>🌟 結餘 ›</span><strong id="hmBal">-</strong></div>
+      <div class="card hm-card" data-card="rate" role="button" tabindex="0"><span>🐷 儲蓄率 ›</span><strong id="hmRate">-</strong></div>
     </section>
+    <div id="hmCardDetail" class="hm-card-detail"></div>
     <div id="hmVs" class="hm-vs"></div>
-    <h3 class="section-title">支出各項占比</h3>
+    <h3 class="section-title">支出各項占比 <small class="hm-tip">點分類看每一筆</small></h3>
     <div class="hm-pie-row">
       <div class="hm-pie"><canvas id="hmExpPie"></canvas></div>
       <div id="hmExpList" class="hm-shares"></div>
     </div>
     <h3 class="section-title">收入來源</h3>
     <div id="hmIncList" class="hm-shares"></div>
+    <h3 class="section-title">本月轉帳</h3>
+    <div id="hmXferList" class="hm-shares hm-box"></div>
+    <p id="hmXferNote" class="hm-note"></p>
     <div id="hmTrendWrap" class="hidden">
       <h3 class="section-title">近幾個月收支</h3>
       <div class="hm-trend"><canvas id="hmTrend"></canvas></div>
+      <div class="hm-month hm-month-head"><span>月份</span><b>收入</b><b>支出</b><b>結餘</b><u></u></div>
+      <div id="hmMonthList"></div>
     </div>
   </section>
 
@@ -242,7 +248,7 @@
   }
 })();
 </script>
-<script src="app.js?v=2026111709"></script>
-<script src="home.js?v=2026111709"></script>
+<script src="app.js?v=2026111710"></script>
+<script src="home.js?v=2026111710"></script>
 </body>
 </html>
