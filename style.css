@@ -422,6 +422,9 @@ main { position: relative; z-index: 1; }
 .hm-tag { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: clamp(9px, 1.4vw, 13px); background: rgba(255, 255, 255, .85); border-radius: 6px; padding: 0 .4em; white-space: nowrap; color: #5a4636; pointer-events: none; }
 .hm-bub { position: absolute; left: 50%; bottom: 104%; transform: translateX(-50%) scale(.6); opacity: 0; pointer-events: none; background: #fff; border: 1.5px solid #e6d4c4; border-radius: 1em; padding: .3em .7em; font-size: clamp(11px, 1.7vw, 15px); font-weight: 600; color: #4a3a30; white-space: nowrap; box-shadow: 0 2px 6px rgba(90, 60, 40, .15); transition: opacity .2s, transform .2s; z-index: 2; }
 .hm-bub.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.hm-pop { position: absolute; z-index: 9000; transform: translate(-50%, -50%); pointer-events: none; font-weight: 800; font-size: clamp(14px, 3vw, 22px); padding: .1em .5em; border-radius: 1em; background: #fff; box-shadow: 0 2px 8px rgba(90, 60, 40, .2); animation: hmPop 2.4s ease-out forwards; white-space: nowrap; }
+.hm-pop.inc { color: #dc2626; } .hm-pop.exp { color: #16a34a; } .hm-pop.xfer { color: #8a5fb5; }
+@keyframes hmPop { 0% { opacity: 0; transform: translate(-50%, 0) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -260%) scale(1); } }
 .hm-bub.below { bottom: auto; top: 104%; }
 .hm-lift { position: absolute; left: 84.6%; width: 12%; height: 9.45%; z-index: 2900; pointer-events: none; box-sizing: border-box; overflow: visible;
   background: linear-gradient(#fff6e8, #ffe9c4); border: 2.5px solid #e0a82e; border-radius: 6px; box-shadow: 0 3px 8px rgba(90, 70, 50, .25); transition: box-shadow .3s; }

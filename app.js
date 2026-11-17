@@ -995,6 +995,7 @@ async function saveRecord(e) {
     }
     closeModal('recModal');
     toast('已儲存 ✓');
+    if (typeof hmOnRecord === 'function') hmOnRecord(data, !!editing);
     if (targetSheet !== current) await switchMonth(targetSheet);
     if (needReloadNow) await loadAll();
     else loadAll().catch(handleError);   // 背景同步，不擋畫面

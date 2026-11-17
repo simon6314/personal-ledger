@@ -683,12 +683,116 @@ function hmBuildScene() {
   hmBuilt = true;
 }
 
+// ── 記帳時的反應：記一筆收入／支出／轉帳，大樓裡的人會有對應的動作 ──────────
+let hmPending = [];
+// 從 app.js 儲存成功後呼叫；不在首頁時先排隊，回到首頁再播
+function hmOnRecord(rec, edited) {
+  hmPending.push({ rec, edited });
+  if (activeTab === 'home' && hmBuilt) setTimeout(hmPlayPending, 400);
+}
+function hmPlayPending() {
+  if (!hmPending.length || !hmBuilt || activeTab !== 'home') return;
+  const list = hmPending.splice(0);
+  hmData_ = hmData();
+  hmDrawBuilding(hmData_);
+  // 一次存了好幾筆時，只演最後一筆，其他的用一句話帶過
+  const last = list[list.length - 1];
+  hmReact(last.rec, last.edited, list.length - 1).catch(() => {});
+}
+// 數字往上飄的小動畫
+function hmPop(text, x, y, cls = '') {
+  const box = $('hmScene');
+  if (!box) return;
+  const el = document.createElement('div');
+  el.className = 'hm-pop ' + cls;
+  el.textContent = text;
+  el.style.left = (x / HM_W * 100) + '%';
+  el.style.top = (y / HM_H * 100) + '%';
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+function hmJoy(id, ms = 1400) {
+  const a = hmActors[id];
+  if (!a) return;
+  a.el.classList.add('happy');
+  setTimeout(() => a.el.classList.remove('happy'), ms);
+}
+async function hmReact(r, edited, more) {
+  const d = hmData_;
+  const amt = Number(r.expense || r.income || r.transfer) || 0;
+  const item = String(r.item || '').slice(0, 10);
+  hmNext = performance.now() + 9000;          // 先暫停閒晃，讓大家專心演這一筆
+  const book = hmActors.book, fl1 = hmFL(1);
+  if (edited) {
+    hmSay('book', `「${item}」改好了 ✏️`, 3000);
+    hmJoy('book');
+    return;
+  }
+  if (more > 0) { hmSay('book', `一口氣記了 ${more + 1} 筆，辛苦了 📚`, 2600); await hmWait(2200); }
+  if (r.type === '轉帳') {
+    // 5F：小轉接單、蓋章、氣送管送出
+    const x = hmActors.xfer;
+    hmPop(`🔁 ${hmShortMoney(amt)}`, 196, hmFL(5) - 90, 'xfer');
+    hmSay('xfer', `收到轉帳單：${r.account} → ${r.toAccount} ${hmShortMoney(amt)} 🔁`, 3400);
+    hmJoy('xfer');
+    await hmWait(3000);
+    if (/股息/.test(r.item || '')) { hmSay('stock', `股息入帳 ${hmShortMoney(amt)}！💰`, 3000); hmJoy('stock', 2000); hmPop('💰', hmActors.stock.pos[0], hmActors.stock.pos[1] - 110); }
+    else if (isStockAcc(r.toAccount || '')) { hmSay('stock', '資金到位，可以準備買股了 📈', 3000); hmJoy('stock'); }
+    else if (isStockAcc(r.account || '')) { hmSay('stock', '從股票帳戶轉出去了，記一下 📝', 3000); }
+    else hmSay(x.id, pk(['氣送管咻～送到了 🚀', '轉好了，記得對一下餘額 🧾', '錢只是換個口袋 👛']), 2600);
+    return;
+  }
+  if (r.type === '收入') {
+    hmPop(`+${hmShortMoney(amt)}`, 470, fl1 - 170, 'inc');
+    hmSay('book', `進帳啦！${item} +${hmShortMoney(amt)} 💰`, 3200);
+    hmJoy('book');
+    await hmWait(1600);
+    const payday = /薪/.test((r.category || '') + item);
+    if (payday) {
+      Object.keys(hmActors).forEach(id => hmJoy(id, 2400));
+      hmSay('me', '發薪日～大家辛苦了！🎉', 3200);
+      await hmWait(1400);
+      hmSay('chart', '收入更新！儲蓄率重新計算中 📊', 2800);
+    } else {
+      hmSay('me', pk(['太棒了，有進帳！🎉', '收入 +1，開心 😆', '錢錢來了 💰']), 2800);
+      hmJoy('me');
+    }
+    return;
+  }
+  // 支出
+  hmPop(`−${hmShortMoney(amt)}`, 470, fl1 - 170, 'exp');
+  hmSay('book', `記下一筆：${item} −${hmShortMoney(amt)} 🧾`, 3200);
+  hmJoy('book', 900);
+  await hmWait(2400);
+  const cat = r.category ? catText(r.category) : '';
+  const share = d.exp ? Math.round((d.cats.find(([n]) => n === r.category) || [0, 0])[1] / d.exp * 100) : 0;
+  hmSay('chart', cat ? `${cat} 現在占支出 ${share}% 📊` : '支出圓餅更新好了 📊', 2800);
+  // 大筆支出：小記搭電梯上 2F 跟老闆報告
+  const exps = d.recs.filter(x => x.type === '支出' && Number(x.expense) > 0);
+  const avg = exps.length ? d.exp / exps.length : 0;
+  if (amt >= Math.max(3000, avg * 3) && !book.busy && !hmActors.me.busy && hmActors.me.floor === 2) {
+    book.busy = true; hmActors.me.busy = true;
+    try {
+      await hmGo('book', 'meetBook');
+      book.figEl.classList.remove('flip');
+      hmActors.me.figEl.classList.add('flip');
+      hmSay('book', `老闆！剛剛有一筆大支出「${item}」${hmShortMoney(amt)} 😱`, 3000);
+      await hmWait(2600);
+      hmSay('me', pk(['…這筆是必要的啦 😅', '嗯，下個月省一點 🫣', '收到，我心裡有數 😌']), 2800);
+      await hmWait(2400);
+    } finally { hmActors.me.busy = false; hmActors.me.figEl.classList.remove('flip'); }
+    await hmGo('book', 'book');
+    book.busy = false;
+  }
+}
+
 const HM_COLORS = ['#ef7d9a', '#ffb86b', '#ffd66b', '#8fd3b0', '#7fb6f0', '#a99cf0', '#f2a3c9', '#9fd8cb', '#c9b6a6'];
 function renderHome() {
   if (!hmBuilt) hmBuildScene();
   const d = hmData_ = hmData();
   hmDrawBuilding(d);
   if (!hmRaf) hmRaf = requestAnimationFrame(hmTick);
+  if (hmPending.length) setTimeout(hmPlayPending, 800);
 
   const bal = d.inc - d.exp;
   const rate = d.inc ? Math.round(bal / d.inc * 100) : null;
