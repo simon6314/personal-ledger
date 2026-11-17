@@ -423,17 +423,28 @@ main { position: relative; z-index: 1; }
 .hm-bub { position: absolute; left: 50%; bottom: 104%; transform: translateX(-50%) scale(.6); opacity: 0; pointer-events: none; background: #fff; border: 1.5px solid #e6d4c4; border-radius: 1em; padding: .3em .7em; font-size: clamp(11px, 1.7vw, 15px); font-weight: 600; color: #4a3a30; white-space: nowrap; box-shadow: 0 2px 6px rgba(90, 60, 40, .15); transition: opacity .2s, transform .2s; z-index: 2; }
 .hm-bub.show { opacity: 1; transform: translateX(-50%) scale(1); }
 .hm-bub.below { bottom: auto; top: 104%; }
-.hm-lift { position: absolute; left: 87.8%; width: 10.6%; height: 20%; z-index: 2900; pointer-events: none; background: linear-gradient(#e9edf3, #cfd6e0); border: 2px solid #8a93a3; border-radius: 4px; box-sizing: border-box; }
-.hm-lift::before { content: ''; position: absolute; left: 10%; right: 10%; top: 4%; height: 3%; background: #fff6c8; border-radius: 3px; box-shadow: 0 0 10px #fff6c8; }
-.hm-lift-doors { position: absolute; inset: 9% 0 0 0; display: flex; }
-.hm-lift-doors i { flex: 1; background: linear-gradient(90deg, #b8c0cc, #dde2ea 50%, #b8c0cc); border: 1px solid #9aa3b0; transition: transform .4s ease; }
+.hm-lift { position: absolute; left: 84.6%; width: 12%; height: 11.34%; z-index: 2900; pointer-events: none; box-sizing: border-box; overflow: visible;
+  background: linear-gradient(#fff6e8, #ffe9c4); border: 2.5px solid #e0a82e; border-radius: 6px; box-shadow: 0 3px 8px rgba(90, 70, 50, .25); transition: box-shadow .3s; }
+.hm-lift.open { box-shadow: 0 0 14px rgba(255, 214, 107, .95); }
+.hm-lift::before { content: ''; position: absolute; left: 12%; right: 12%; top: 16%; height: 4%; background: #fff; border-radius: 3px; opacity: .8; }
+.hm-lift-doors { position: absolute; inset: 14% 0 0 0; display: flex; overflow: hidden; }
+.hm-lift-doors i { flex: 1; background: linear-gradient(90deg, #c5d0db, #e6ecf2 45%, #c5d0db); border: 1px solid #9aa8b6; transition: transform .4s ease; }
 .hm-lift-doors i:first-child { transform-origin: left; } .hm-lift-doors i:last-child { transform-origin: right; }
-.hm-lift-doors.open i { transform: scaleX(.08); }
-.hm-lift-ind { position: absolute; top: -14%; left: 50%; transform: translateX(-50%); background: #2f3542; color: #7fffd0; font: 700 clamp(9px, 1.6vw, 13px) monospace; padding: 1px 6px; border-radius: 4px; }
+.hm-lift-doors.open i { transform: scaleX(.06); }
+.hm-lift-ind { position: absolute; left: 0; right: 0; top: 0; height: 14%; display: flex; align-items: center; justify-content: center; background: #e0a82e; color: #fff; font: 800 clamp(8px, 1.5vw, 12px) system-ui, sans-serif; white-space: nowrap; }
 .hb-blink { animation: hbBlink 1.2s steps(2) infinite; }
 @keyframes hbBlink { 50% { opacity: .2; } }
-.hb-steam { animation: hbSteam 1.6s ease-in-out infinite; }
+.hb-twinkle { animation: hbBlink 2.4s ease-in-out infinite; }
+.hb-steam { animation: hbSteam 1.8s ease-in-out infinite; }
 @keyframes hbSteam { 0% { opacity: 0; transform: translateY(4px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.hb-drip { animation: hbDrip 1.4s ease-in infinite; transform-box: fill-box; transform-origin: top; }
+@keyframes hbDrip { 0% { transform: scaleY(0); } 40% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+.hb-leaf { animation: hbSway 4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes hbSway { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
+.hb-tree { animation: hbSway 5s ease-in-out infinite alternate; }
+.hb-car { animation: hbCar 13s linear infinite; }
+@keyframes hbCar { from { transform: translateX(-120px); } to { transform: translateX(1150px); } }
+@media (prefers-reduced-motion: reduce) { .hb-car, .hb-leaf, .hb-tree, .hb-steam, .hb-drip { animation: none; } }
 .hm-hint { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
 .hm-vs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; display: grid; gap: 8px; }
 .hm-vs-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
