@@ -407,13 +407,13 @@ main { position: relative; z-index: 1; }
 .hm-actor { position: absolute; width: 9%; aspect-ratio: 80 / 92; padding: 0; border: 0; background: none; transform: translate(-50%, -100%); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .hm-fig { position: absolute; inset: 0; display: block; transition: transform .2s; }
 .hm-fig.flip { transform: scaleX(-1); }
-.hm-fig svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 100%; }
+.hm-fig svg, .hm-fig img { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 100%; user-select: none; -webkit-user-drag: none; }
 .hm-eye-h { display: none; }
 .hm-actor.happy .hm-eye, .hm-actor.rest .hm-eye { display: none; }
 .hm-actor.happy .hm-eye-h, .hm-actor.rest .hm-eye-h { display: inline; }
-.hm-actor.walk svg { animation: hmBob .34s ease-in-out infinite alternate; }
-.hm-actor.happy svg { animation: hmJump .5s ease-in-out 2; }
-.hm-actor.rest svg { transform: rotate(-8deg) translateY(4%); }
+.hm-actor.walk .hm-fig > * { animation: hmBob .34s ease-in-out infinite alternate; }
+.hm-actor.happy .hm-fig > * { animation: hmJump .5s ease-in-out 2; }
+.hm-actor.rest .hm-fig > * { transform: rotate(-8deg) translateY(4%); }
 .hm-arm { transform-box: view-box; }
 .hm-arm-l { transform-origin: 25.5px 61px; } .hm-arm-r { transform-origin: 54.5px 61px; }
 .hm-actor.walk .hm-arm-l { animation: hmSwL .34s ease-in-out infinite alternate; }
@@ -461,6 +461,15 @@ main { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .hb-car, .hb-leaf, .hb-tree, .hb-steam, .hb-drip { animation: none; } }
 .hm-actor.cup .hm-fig::after { content: '☕'; position: absolute; right: -14%; top: 54%; font-size: clamp(10px, 2.6vw, 16px); }
 .hm-fig.flip::after { transform: scaleX(-1); }
+.hm-actor.img .hm-fig > * { filter: drop-shadow(0 2px 1.5px rgba(70, 50, 30, .25)); }
+.hm-actor.img.rest .hm-fig > * { transform: rotate(-6deg) translateY(3%); }
+.hm-actor.dog.walk .hm-fig > * { animation: hmTrot .22s ease-in-out infinite alternate; }
+.hm-actor.dog.happy .hm-fig > * { animation: hmWag .18s ease-in-out 8 alternate; }
+.hm-actor.dog.rest .hm-fig > * { transform: scaleY(.82); transform-origin: 50% 100%; }
+@keyframes hmTrot { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-8%) rotate(2deg); } }
+@keyframes hmWag { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+.hm-actor.dog .hm-tag { font-size: clamp(9px, 2.2vw, 12px); }
+.hm-actor.img.cup .hm-fig::after { right: -30%; top: 50%; }
 .hm-hint { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
 .hm-vs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; display: grid; gap: 8px; }
 .hm-vs-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
@@ -513,7 +522,7 @@ main { position: relative; z-index: 1; }
 .hm-go { justify-self: start; margin-top: 4px; }
 .hm-tip { font-size: 12px; color: var(--muted); font-weight: 500; }
 .hm-trend { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
-@media (prefers-reduced-motion: reduce) { .hm-actor svg, .hm-arm { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .hm-actor .hm-fig > *, .hm-arm { animation: none !important; } }
 
 .hm-bub.edge-r { left: auto; right: -10%; transform: scale(.6); transform-origin: right bottom; }
 .hm-bub.edge-r.show { transform: scale(1); }

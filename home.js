@@ -19,7 +19,7 @@ const HM_SPOTS = {
   chart: [560, HM_ROOM.chart], board: [300, HM_ROOM.chart], shelf: [740, HM_ROOM.chart],
   me: [480, HM_ROOM.boss], sofa: [730, HM_ROOM.boss], window: [210, HM_ROOM.boss],
   book: [320, HM_ROOM.book], cabinet: [560, HM_ROOM.book], notice: [720, HM_ROOM.book],
-  door: [110, HM_ROOM.lobby], guide: [270, HM_ROOM.lobby], lounge: [430, HM_ROOM.lobby], lounge2: [510, HM_ROOM.lobby], coffee: [650, HM_ROOM.lobby], coffee2: [730, HM_ROOM.lobby],
+  door: [110, HM_ROOM.lobby], dogbed: [300, HM_ROOM.lobby], dogsofa: [560, HM_ROOM.lobby], guide: [270, HM_ROOM.lobby], lounge: [430, HM_ROOM.lobby], lounge2: [510, HM_ROOM.lobby], coffee: [650, HM_ROOM.lobby], coffee2: [730, HM_ROOM.lobby],
   xfer: [400, HM_ROOM.xfer], tube: [150, HM_ROOM.xfer], atm: [600, HM_ROOM.xfer], lockers: [730, HM_ROOM.xfer],
   meetBook: [385, HM_ROOM.boss], meetChart: [575, HM_ROOM.boss], meetStock: [610, HM_ROOM.boss], meetXfer: [385, HM_ROOM.boss],
 };
@@ -29,7 +29,12 @@ const HM_ACTORS = [
   { id: 'chart', name: '小分', role: '分析員', seat: 'chart', look: { skin: '#fcdcc4', hair: '#2e2a30', hs: 'pony', cloth: '#9fd0f0', g: 'f' } },
   { id: 'xfer', name: '小轉', role: '轉帳交易員', seat: 'xfer', look: { skin: '#fbdcc6', hair: '#7a4b2e', hs: 'side', cloth: '#c9a0e6', tie: '#7fd6e6', g: 'm' } },
   { id: 'stock', name: '小股', role: '股票員', seat: 'stock', look: { skin: '#f6d2b8', hair: '#3b2f2f', hs: 'short', cloth: '#4f6f5f', tie: '#ffd66b', g: 'm' } },
+  { id: 'dog', name: '小白', role: '大樓吉祥物', seat: 'dogbed', pet: true },
 ];
+// Gemini 畫的角色圖（img/<id>.png，已去背、高 512）；寬高比用來決定在畫面上的大小
+const HM_IMG_V = '20261117a';
+const HM_IMG = { me: 214 / 512, book: 237 / 512, chart: 256 / 512, stock: 228 / 512, xfer: 226 / 512, dog: 409 / 512 };
+const HM_PERSON_H = 150, HM_DOG_H = 66;          // 人和狗在大樓座標裡的高度
 const HM_FLOOR_NAME = Object.fromEntries(Object.entries({ boss: '老闆辦公室', xfer: '轉帳中心', stock: '股票交易室', chart: '分析室', book: '記帳室', lobby: '大廳・休息區' }).map(([k, n]) => [HM_ROOM[k], `${HM_ROOM[k]}F ${n}`]));
 const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
 const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
@@ -111,6 +116,7 @@ function hmData() {
 // ── 台詞 ────────────────────────────────────────────────────
 const pk = a => a[Math.floor(Math.random() * a.length)];
 function hmLine(id, d) {
+  if (id === 'dog') return pk(['汪！🐾', '汪汪～ 🐶', '（搖尾巴）🐕', '（嗅嗅）👃', '想散步… 🦮', '（打哈欠）😪', '有零食嗎？🦴']);
   const pct = (v, t) => (t ? Math.round(v / t * 100) : 0);
   const top = d.cats[0];
   const bal = d.inc - d.exp;
@@ -281,7 +287,7 @@ function hmTick(now) {
   if (now - hmClockT > 60000) { hmClockT = now; if (hmData_) hmDrawBuilding(hmData_); }
 }
 // ── 角色之間的對話 ───────────────────────────────────────────
-const HM_NAME = { me: '老闆', book: '小記', chart: '小分', stock: '小股', xfer: '小轉' };
+const HM_NAME = { me: '老闆', book: '小記', chart: '小分', stock: '小股', xfer: '小轉', dog: '小白' };
 // a 去找 b 聊天時的台詞（依兩人的工作內容）
 function hmTalk(a, b, d) {
   const top = d.cats[0], lx = d.latestXfer;
@@ -308,6 +314,7 @@ function hmTalk(a, b, d) {
 // 在休息區喝咖啡時遇到人
 function hmCoffeeTalk(a, b, d) {
   const T = (x, y) => [{ who: a, text: x }, { who: b, text: y }];
+  if (b === 'dog') return pk([T('小白～好乖，摸摸 🐶', '汪汪！🐾'), T('小白你也想喝咖啡？不行喔 ☕', '（歪頭）🐕'), T('小白今天好蓬 ✨', '（搖尾巴）🐾')]);
   if (b === 'me') return pk([T('老闆也來喝咖啡！😳', '大家辛苦了，今天咖啡我請 ☕'), T('老闆早～', '早！記得多喝水 💧')]);
   if (a === 'me') return pk([T('咖啡好喝嗎？', '超好喝，續命成功 😆'), T(`${HM_NAME[b]}也在休息啊`, '老闆好！喘口氣而已 😅')]);
   return pk([T('你也來裝咖啡啊 ☕', '對啊，續命一下 😆'), T('要不要加奶？🥛', '黑咖啡就好 ☕'), T('今天的咖啡豆好香 🌰', '新換的喔～'), T('飲水機的水好冰 🧊', '夏天剛好 😌'), T(`${HM_NAME[b]}，等等一起回去？`, '好，等我喝完 ☕')]);
@@ -354,7 +361,7 @@ const hmSpots = k => HM_SPOTS[k][0];
 // 去找另一個人聊天
 async function hmVisit(a) {
   const d = hmData_;
-  const cand = Object.values(hmActors).filter(x => x !== a && !x.busy && !x.hurry && x.id !== 'me');
+  const cand = Object.values(hmActors).filter(x => x !== a && !x.busy && !x.hurry && x.id !== 'me' && !x.pet);
   if (!cand.length) return false;
   const b = pk(cand);
   b.busy = true;
@@ -367,6 +374,37 @@ async function hmVisit(a) {
   await hmGo(a.id, a.seat);
   return true;
 }
+// 小白（狗）：在大廳晃、在沙發旁打盹、偶爾搭電梯去找人
+async function hmDogIdle(a) {
+  const d = hmData_, r = Math.random();
+  if (r < 0.35) {
+    await hmGoTo(a.id, 150 + Math.random() * 560, a.floor);
+    hmSay(a.id, hmLine('dog', d), 2200);
+    a.el.classList.add('happy');
+    await hmNap(a, 1800);
+    a.el.classList.remove('happy');
+    return;
+  }
+  if (r < 0.55) {
+    await hmGo('dog', 'dogsofa');
+    a.el.classList.add('rest');
+    hmSay('dog', pk(['（在沙發旁打盹）💤', '（趴下）😴', 'Zzz… 💤']), 2600);
+    await hmNap(a, 5000);
+    a.el.classList.remove('rest');
+  } else if (r < 0.8) {
+    const t = pk(Object.values(hmActors).filter(x => x !== a && !x.busy && !x.hurry && !x.pet));
+    if (t) {
+      t.busy = true;
+      try {
+        await hmGoTo('dog', t.pos[0] + (t.pos[0] > 560 ? -70 : 70), t.floor);
+        hmFace(a, t);
+        await hmChat([{ who: 'dog', text: pk(['汪汪！🐾', '（搖尾巴）🐕', '（蹭蹭）🐶']) },
+          { who: t.id, text: pk(['小白怎麼上來了？😆', '乖～摸摸頭 🐶', '要不要吃點心？🦴', '小白來監督工作嗎？👀', '你自己搭電梯上來的喔？🛗']) }]);
+      } finally { t.busy = false; t.figEl.classList.remove('flip'); }
+    }
+  }
+  await hmGo('dog', 'dogbed');
+}
 async function hmIdle() {
   const free = Object.values(hmActors).filter(a => !a.busy && !a.hurry);
   if (!free.length) return;
@@ -375,7 +413,9 @@ async function hmIdle() {
   const r = Math.random();
   a.busy = true;
   try {
-    if (r < 0.22) {
+    if (a.pet) {
+      await hmDogIdle(a);
+    } else if (r < 0.22) {
       await hmCoffee(a);
     } else if (a.id !== 'me' && r < 0.38 && !hmActors.me.busy && hmActors.me.floor === HM_ROOM.boss) {
       // 搭電梯上頂樓找老闆報告
@@ -403,7 +443,7 @@ async function hmIdle() {
       a.el.classList.add(where === 'sofa' ? 'rest' : 'happy');
       const mate = Object.values(hmActors).find(x => x !== a && x.floor === a.floor && !x.busy);
       await hmNap(a, 2400);
-      if (mate) { hmFace(a, mate); hmSay(mate.id, pk(['老闆好！👋', '老闆來巡視了 😳', '老闆要喝咖啡嗎 ☕']), 2200); await hmNap(a, 1600); }
+      if (mate) { hmFace(a, mate); hmSay(mate.id, mate.pet ? pk(['汪！🐾', '（搖尾巴迎接老闆）🐕']) : pk(['老闆好！👋', '老闆來巡視了 😳', '老闆要喝咖啡嗎 ☕']), 2200); await hmNap(a, 1600); }
       a.el.classList.remove('rest', 'happy');
       await hmGo('me', 'me');
     } else if (a.id !== 'me' && r < 0.75) {
@@ -780,6 +820,9 @@ function hmDrawBuilding(d) {
     <g><rect x="590" y="${t + 56}" width="190" height="84" rx="8" fill="#3e4a5a" stroke="#c99a6a" stroke-width="5"/>
       <text x="685" y="${t + 88}" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">☕ 咖啡吧</text>
       <text x="685" y="${t + 120}" text-anchor="middle" font-size="18" fill="#ffd66b">${hmNight() ? '今晚：熱可可 🍫' : now.getHours() < 11 ? '早安拿鐵 🥛' : '午後美式 ☕'}</text></g>
+    <g transform="translate(300 ${fl})"><ellipse cx="0" cy="0" rx="50" ry="9" fill="rgba(90,70,50,.12)"/><ellipse cx="0" cy="-6" rx="46" ry="12" fill="#f3a9bf"/><ellipse cx="0" cy="-9" rx="36" ry="7" fill="#fde0e9"/>
+      <g transform="translate(40 -6)"><ellipse cx="0" cy="0" rx="14" ry="6" fill="#9fd0f0"/><ellipse cx="0" cy="-2" rx="10" ry="3" fill="#c99a6a"/></g>
+      <g transform="translate(-30 -16) rotate(-15)"><rect x="-10" y="-2.5" width="20" height="5" rx="2.5" fill="#fffaf0"/><circle cx="-10" cy="-2" r="3" fill="#fffaf0"/><circle cx="-10" cy="2" r="3" fill="#fffaf0"/><circle cx="10" cy="-2" r="3" fill="#fffaf0"/><circle cx="10" cy="2" r="3" fill="#fffaf0"/></g></g>
     ${hmPlant(205, fl, 0.8, true)}`);
 
   // ── 電梯井：每層一扇門、樓層燈、呼叫鈕 ──
@@ -828,7 +871,15 @@ function hmBuildScene() {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'hm-actor';
-    el.innerHTML = `<span class="hm-fig">${hmPerson(c.look)}</span><span class="hm-tag">${esc(c.name)}</span><span class="hm-bub"></span>`;
+    const ratio = HM_IMG[c.id];
+    if (ratio) {
+      const h = c.pet ? HM_DOG_H : HM_PERSON_H;
+      el.classList.add('img');
+      if (c.pet) el.classList.add('dog');
+      el.style.width = (h * ratio / HM_W * 100) + '%';
+      el.style.aspectRatio = `${ratio}`;
+    }
+    el.innerHTML = `<span class="hm-fig">${ratio ? `<img src="img/${c.id}.png?v=${HM_IMG_V}" alt="" draggable="false">` : hmPerson(c.look)}</span><span class="hm-tag">${esc(c.name)}</span><span class="hm-bub"></span>`;
     const s = hmSpot(c.seat);
     const a = { ...c, el, figEl: el.querySelector('.hm-fig'), bubEl: el.querySelector('.hm-bub'), pos: [s.x, hmFeet(s.f)], floor: s.f, busy: false };
     el.addEventListener('click', () => { if (hmData_) { hmSay(c.id, `${c.name}（${c.role}）：${hmLine(c.id, hmData_)}`, 3600); el.classList.add('happy'); setTimeout(() => el.classList.remove('happy'), 900); } });
@@ -939,6 +990,7 @@ async function hmReactAt(r, edited, more) {
     } else {
       hmSay('me', pk(['太棒了，有進帳！🎉', '收入 +1，開心 😆', '錢錢來了 💰']), 2800);
       hmJoy('me');
+      hmSay('dog', pk(['汪汪！🎉', '（開心轉圈）🐾']), 2400); hmJoy('dog', 2000);
     }
     return;
   }
