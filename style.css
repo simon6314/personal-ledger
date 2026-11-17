@@ -453,6 +453,9 @@ main { position: relative; z-index: 1; }
 @keyframes hbStamp { 0%, 50%, 100% { transform: translateY(-10px); } 70%, 78% { transform: translateY(0); } }
 .hb-cash { animation: hbCash 3s ease-in-out infinite; transform-box: fill-box; transform-origin: top; }
 @keyframes hbCash { 0%, 30% { transform: scaleY(0); } 60%, 85% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+.hb-idx { transition: none; }
+.hb-idx.up, .hb-idx.down { animation: hbFlash .6s ease-out; }
+@keyframes hbFlash { 0% { opacity: .35; } 100% { opacity: 1; } }
 .hb-car { animation: hbCar 13s linear infinite; }
 @keyframes hbCar { from { transform: translateX(-120px); } to { transform: translateX(1150px); } }
 @media (prefers-reduced-motion: reduce) { .hb-car, .hb-leaf, .hb-tree, .hb-steam, .hb-drip { animation: none; } }
