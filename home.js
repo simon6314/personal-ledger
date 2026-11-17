@@ -17,9 +17,9 @@ const HM_ROOM = { boss: 6, xfer: 5, stock: 4, chart: 3, book: 2, lobby: 1 };
 const HM_SPOTS = {
   stock: [380, HM_ROOM.stock], monitor: [520, HM_ROOM.stock], vault: [690, HM_ROOM.stock],
   chart: [560, HM_ROOM.chart], board: [300, HM_ROOM.chart], shelf: [740, HM_ROOM.chart],
-  me: [480, HM_ROOM.boss], sofa: [730, HM_ROOM.boss], window: [210, HM_ROOM.boss],
+  me: [480, HM_ROOM.boss], dogbed: [240, HM_ROOM.boss], dognap: [622, HM_ROOM.boss], sofa: [730, HM_ROOM.boss], window: [210, HM_ROOM.boss],
   book: [320, HM_ROOM.book], cabinet: [560, HM_ROOM.book], notice: [720, HM_ROOM.book],
-  door: [110, HM_ROOM.lobby], dogbed: [300, HM_ROOM.lobby], dogsofa: [560, HM_ROOM.lobby], guide: [270, HM_ROOM.lobby], lounge: [430, HM_ROOM.lobby], lounge2: [510, HM_ROOM.lobby], coffee: [650, HM_ROOM.lobby], coffee2: [730, HM_ROOM.lobby],
+  door: [110, HM_ROOM.lobby],  guide: [270, HM_ROOM.lobby], lounge: [430, HM_ROOM.lobby], lounge2: [510, HM_ROOM.lobby], coffee: [650, HM_ROOM.lobby], coffee2: [730, HM_ROOM.lobby],
   xfer: [400, HM_ROOM.xfer], tube: [150, HM_ROOM.xfer], atm: [600, HM_ROOM.xfer], lockers: [730, HM_ROOM.xfer],
   meetBook: [385, HM_ROOM.boss], meetChart: [575, HM_ROOM.boss], meetStock: [610, HM_ROOM.boss], meetXfer: [385, HM_ROOM.boss],
 };
@@ -374,21 +374,24 @@ async function hmVisit(a) {
   await hmGo(a.id, a.seat);
   return true;
 }
-// 小白（狗）：在大廳晃、在沙發旁打盹、偶爾搭電梯去找人
+// 小白（狗）：常駐頂樓老闆辦公室；在辦公室晃、趴在老闆腳邊打盹、偶爾搭電梯去找人
 async function hmDogIdle(a) {
   const d = hmData_, r = Math.random();
   if (r < 0.35) {
-    await hmGoTo(a.id, 150 + Math.random() * 560, a.floor);
+    await hmGoTo(a.id, 150 + Math.random() * 520, HM_ROOM.boss);
     hmSay(a.id, hmLine('dog', d), 2200);
     a.el.classList.add('happy');
     await hmNap(a, 1800);
     a.el.classList.remove('happy');
+    const boss = hmActors.me;
+    if (boss.floor === HM_ROOM.boss && !boss.busy && Math.random() < 0.5) { hmFace(a, boss); hmSay('me', pk(['小白乖～摸摸 🐶', '小白，老闆在忙喔 😆', '要不要出去走走？🦮', '來，給你一塊零食 🦴']), 2600); await hmNap(a, 2200); hmSay('dog', pk(['汪汪！🐾', '（搖尾巴）🐕']), 2000); }
     return;
   }
   if (r < 0.55) {
-    await hmGo('dog', 'dogsofa');
+    await hmGo('dog', 'dognap');
     a.el.classList.add('rest');
-    hmSay('dog', pk(['（在沙發旁打盹）💤', '（趴下）😴', 'Zzz… 💤']), 2600);
+    hmSay('dog', pk(['（趴在老闆腳邊打盹）💤', '（趴下）😴', 'Zzz… 💤']), 2600);
+    if (hmActors.me.floor === HM_ROOM.boss && !hmActors.me.busy) { await hmNap(a, 1800); hmSay('me', pk(['小白睡得好香 😊', '噓～小白在睡覺 🤫', '有小白陪加班真好 🐶']), 2600); }
     await hmNap(a, 5000);
     a.el.classList.remove('rest');
   } else if (r < 0.8) {
@@ -424,6 +427,8 @@ async function hmIdle() {
       try {
         await hmGo(a.id, ({ book: 'meetBook', chart: 'meetChart', stock: 'meetStock', xfer: 'meetXfer' })[a.id]);
         hmFace(a, boss);
+        const dog = hmActors.dog;
+        if (dog && dog.floor === HM_ROOM.boss && !dog.busy) hmSay('dog', pk(['汪！（歡迎）🐾', '（跑過來聞聞）👃', '（搖尾巴）🐕']), 1800);
         await hmChat(hmReport(a.id, d));
       } finally { boss.busy = false; boss.figEl.classList.remove('flip'); }
       await hmGo(a.id, a.seat);
@@ -738,7 +743,10 @@ function hmDrawBuilding(d) {
       <rect x="-62" y="-98" width="56" height="44" rx="16" fill="#fde0e9"/><rect x="6" y="-98" width="56" height="44" rx="16" fill="#fde0e9"/>
       <rect x="-30" y="-88" width="30" height="26" rx="8" fill="#fff6c8" transform="rotate(-10 -15 -75)"/>
       <rect x="-76" y="-8" width="12" height="8" rx="3" fill="#c97d93"/><rect x="64" y="-8" width="12" height="8" rx="3" fill="#c97d93"/></g>
-    ${hmPlant(66, fl, 1.05)}`);
+    ${hmPlant(66, fl, 1.05)}
+    <g transform="translate(240 ${fl})"><ellipse cx="0" cy="0" rx="50" ry="9" fill="rgba(90,70,50,.12)"/><ellipse cx="0" cy="-6" rx="46" ry="12" fill="#f3a9bf"/><ellipse cx="0" cy="-9" rx="36" ry="7" fill="#fde0e9"/>
+      <g transform="translate(40 -6)"><ellipse cx="0" cy="0" rx="14" ry="6" fill="#9fd0f0"/><ellipse cx="0" cy="-2" rx="10" ry="3" fill="#c99a6a"/></g>
+      <g transform="translate(-30 -16) rotate(-15)"><rect x="-10" y="-2.5" width="20" height="5" rx="2.5" fill="#fffaf0"/><circle cx="-10" cy="-2" r="3" fill="#fffaf0"/><circle cx="-10" cy="2" r="3" fill="#fffaf0"/><circle cx="10" cy="-2" r="3" fill="#fffaf0"/><circle cx="10" cy="2" r="3" fill="#fffaf0"/></g></g>`);
 
   // ── 記帳室（2F）：窗戶、記錄燈箱、記帳櫃台（帳本、收據機、服務鈴）、檔案櫃、公告欄、紙箱 ──
   t = T[HM_ROOM.book] + HM_WALL_Y; fl = FL(HM_ROOM.book);
@@ -820,9 +828,6 @@ function hmDrawBuilding(d) {
     <g><rect x="590" y="${t + 56}" width="190" height="84" rx="8" fill="#3e4a5a" stroke="#c99a6a" stroke-width="5"/>
       <text x="685" y="${t + 88}" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">☕ 咖啡吧</text>
       <text x="685" y="${t + 120}" text-anchor="middle" font-size="18" fill="#ffd66b">${hmNight() ? '今晚：熱可可 🍫' : now.getHours() < 11 ? '早安拿鐵 🥛' : '午後美式 ☕'}</text></g>
-    <g transform="translate(300 ${fl})"><ellipse cx="0" cy="0" rx="50" ry="9" fill="rgba(90,70,50,.12)"/><ellipse cx="0" cy="-6" rx="46" ry="12" fill="#f3a9bf"/><ellipse cx="0" cy="-9" rx="36" ry="7" fill="#fde0e9"/>
-      <g transform="translate(40 -6)"><ellipse cx="0" cy="0" rx="14" ry="6" fill="#9fd0f0"/><ellipse cx="0" cy="-2" rx="10" ry="3" fill="#c99a6a"/></g>
-      <g transform="translate(-30 -16) rotate(-15)"><rect x="-10" y="-2.5" width="20" height="5" rx="2.5" fill="#fffaf0"/><circle cx="-10" cy="-2" r="3" fill="#fffaf0"/><circle cx="-10" cy="2" r="3" fill="#fffaf0"/><circle cx="10" cy="-2" r="3" fill="#fffaf0"/><circle cx="10" cy="2" r="3" fill="#fffaf0"/></g></g>
     ${hmPlant(205, fl, 0.8, true)}`);
 
   // ── 電梯井：每層一扇門、樓層燈、呼叫鈕 ──
