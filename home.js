@@ -196,8 +196,11 @@ function hmIdxStep() {
   c.setAttribute('y', up ? mid - h : mid); c.setAttribute('height', h); c.setAttribute('fill', col); w.setAttribute('stroke', col);
 }
 let hmActors = {}, hmRaf = 0, hmLast = 0, hmData_ = null, hmNext = 0, hmBuilt = false, hmClockT = 0;
-const hmLift = { y: HM_FT[1], target: null, done: null, queue: Promise.resolve(), el: null, doorEl: null };
+const hmLift = { y: HM_FT[1], target: null, done: null, riders: [], running: false, dir: 0, el: null, doorEl: null };
+const HM_LIFT_CAP = 5, HM_LIFT_SPEED = 760;   // 一次最多載 5 個，速度（大樓座標／秒）
+const HM_LIFT_SLOTS = [0, -26, 26, -13, 13];  // 車廂裡站的位置
 function hmPlace(a) {
+  a.el.classList.toggle('in-lift', !!a.inLift);
   a.el.style.left = (a.pos[0] / HM_W * 100) + '%';
   a.el.style.top = (a.pos[1] / HM_H * 100) + '%';
   a.el.style.zIndex = String(Math.round(a.pos[1]) + (a.inLift ? 3000 : 0) + (a.bub ? 6000 : 0));
@@ -218,29 +221,55 @@ function hmStep(a, x) {
 function hmLiftTo(f) {
   return new Promise(res => { hmLift.target = HM_FT[f]; hmLift.done = res; });
 }
-function hmDoors(open) { hmLift.doorEl.classList.toggle('open', open); hmLift.el.classList.toggle('open', open); return hmWait(450); }
+function hmDoors(open) { hmLift.doorEl.classList.toggle('open', open); hmLift.el.classList.toggle('open', open); return hmWait(280); }
 // 車廂高度跟每層的電梯門一樣（170），貼齊該層地板
 function hmLiftPos() { hmLift.el.style.top = ((hmLift.y + HM_FOOT - 170) / HM_H * 100) + '%'; }
-// 搭電梯：一次載一個人，其他人排隊
+// 搭電梯：可以多人一起搭。電梯依方向一路停靠（有人要上或要下的樓層），像真的電梯一樣
 function hmRide(a, to) {
-  const job = hmLift.queue.then(async () => {
-    $('hmLiftInd').textContent = `${a.floor}F`;
-    await hmLiftTo(a.floor);
-    await hmDoors(true);
-    a.inLift = true;
-    await hmStep(a, HM_LIFT_X);
-    await hmDoors(false);
-    a.riding = true;
-    await hmLiftTo(to);
-    a.riding = false;
-    a.floor = to;
-    await hmDoors(true);
-    await hmStep(a, HM_LIFT_DOOR);
-    a.inLift = false;
-    await hmDoors(false);
-  });
-  hmLift.queue = job.catch(() => {});
-  return job;
+  return new Promise(res => { hmLift.riders.push({ a, from: a.floor, to, inside: false, res }); hmLiftRun(); });
+}
+const hmLiftFloor = () => [1, 2, 3, 4, 5, 6].find(f => Math.abs(HM_FT[f] - hmLift.y) < 1);
+async function hmLiftRun() {
+  if (hmLift.running) return;
+  hmLift.running = true;
+  try {
+    while (hmLift.riders.length) {
+      const cur = hmLiftFloor();
+      const inside = hmLift.riders.filter(r => r.inside).length;
+      const stops = [...new Set(hmLift.riders.filter(r => r.inside || inside < HM_LIFT_CAP).map(r => (r.inside ? r.to : r.from)))];
+      let next = stops.includes(cur) ? cur : null;
+      if (next == null) {
+        const curY = hmLift.y;
+        const ahead = stops.filter(f => (hmLift.dir > 0 ? HM_FT[f] < curY : hmLift.dir < 0 ? HM_FT[f] > curY : true));
+        const pool = ahead.length ? ahead : stops;
+        next = pool.reduce((b, f) => (Math.abs(HM_FT[f] - curY) < Math.abs(HM_FT[b] - curY) ? f : b), pool[0]);
+        hmLift.dir = HM_FT[next] < curY ? 1 : -1;          // 1＝往上
+        await hmLiftTo(next);
+      }
+      // 到站：開門 → 要下的人先出去 → 等在門口的人進來 → 關門
+      await hmDoors(true);
+      const out = hmLift.riders.filter(r => r.inside && r.to === next);
+      hmLift.riders = hmLift.riders.filter(r => !out.includes(r));
+      await Promise.all(out.map(async (r, i) => {
+        r.a.riding = false; r.a.floor = next; r.a.pos[1] = hmFL(next);
+        await hmStep(r.a, HM_LIFT_DOOR - i * 18);
+        r.a.inLift = false;
+        r.res();
+      }));
+      const room = HM_LIFT_CAP - hmLift.riders.filter(r => r.inside).length;
+      const inn = hmLift.riders.filter(r => !r.inside && r.from === next).slice(0, room);
+      const used = new Set(hmLift.riders.filter(r => r.inside).map(r => r.slot));
+      await Promise.all(inn.map(async r => {
+        r.slot = HM_LIFT_SLOTS.findIndex((_, k) => !used.has(k)); used.add(r.slot);
+        r.a.inLift = true;
+        await hmStep(r.a, HM_LIFT_X + HM_LIFT_SLOTS[r.slot]);
+        r.inside = true; r.a.riding = true;
+      }));
+      // 沒人要去別層的話（例如只是開門讓人出去），也會關門
+      await hmDoors(false);
+      if (!hmLift.riders.length) hmLift.dir = 0;
+    }
+  } finally { hmLift.running = false; }
 }
 function hmGo(id, key) { const s = hmSpot(key); return hmGoTo(id, s.x, s.f, key === hmActors[id].seat); }
 // home：要回自己座位；有新帳要處理（hurry）時，其他目的地一律取消
@@ -263,7 +292,7 @@ function hmTick(now) {
   hmLast = now;
   // 電梯
   if (hmLift.target != null) {
-    const dy = hmLift.target - hmLift.y, step = 420 * dt;
+    const dy = hmLift.target - hmLift.y, step = HM_LIFT_SPEED * dt;
     if (Math.abs(dy) <= step) { hmLift.y = hmLift.target; hmLift.target = null; const f = hmLift.done; hmLift.done = null; if (f) f(); }
     else hmLift.y += Math.sign(dy) * step;
     hmLiftPos();

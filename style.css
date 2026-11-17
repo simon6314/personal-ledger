@@ -435,7 +435,7 @@ main { position: relative; z-index: 1; }
 .hm-lift.open { box-shadow: 0 0 14px rgba(255, 214, 107, .95); }
 .hm-lift::before { content: ''; position: absolute; left: 12%; right: 12%; top: 16%; height: 4%; background: #fff; border-radius: 3px; opacity: .8; }
 .hm-lift-doors { position: absolute; inset: 14% 0 0 0; display: flex; overflow: hidden; }
-.hm-lift-doors i { flex: 1; background: linear-gradient(90deg, #c5d0db, #e6ecf2 45%, #c5d0db); border: 1px solid #9aa8b6; transition: transform .4s ease; }
+.hm-lift-doors i { flex: 1; background: linear-gradient(90deg, #c5d0db, #e6ecf2 45%, #c5d0db); border: 1px solid #9aa8b6; transition: transform .25s ease; }
 .hm-lift-doors i:first-child { transform-origin: left; } .hm-lift-doors i:last-child { transform-origin: right; }
 .hm-lift-doors.open i { transform: scaleX(.06); }
 .hm-lift-ind { position: absolute; left: 0; right: 0; top: 0; height: 14%; display: flex; align-items: center; justify-content: center; background: #e0a82e; color: #fff; font: 800 clamp(8px, 1.5vw, 12px) system-ui, sans-serif; white-space: nowrap; }
@@ -475,6 +475,7 @@ main { position: relative; z-index: 1; }
 @keyframes hmWag { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
 .hm-actor.dog .hm-tag { font-size: clamp(9px, 2.2vw, 12px); }
 .hm-actor.img.cup .hm-fig::after { right: -30%; top: 50%; }
+.hm-actor.in-lift .hm-tag { display: none; }   /* 多人搭電梯時名牌會疊在一起，先藏起來 */
 .hm-hint { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
 .hm-vs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; display: grid; gap: 8px; }
 .hm-vs-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
