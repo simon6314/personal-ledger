@@ -398,7 +398,7 @@ main { position: relative; z-index: 1; }
 .rec-bal.bal-neg { color: #16a34a; font-weight: 600; }
 
 /* ── 首頁：我的帳本辦公室 ── */
-.hm-scene { position: relative; width: 100%; max-width: 620px; margin-left: auto; margin-right: auto; aspect-ratio: 1000 / 1500; border-radius: var(--radius); overflow: hidden; background: #f8e8d6; box-shadow: 0 4px 16px rgba(60, 50, 90, .12); margin-top: 6px; }
+.hm-scene { position: relative; width: 100%; max-width: 620px; margin-left: auto; margin-right: auto; aspect-ratio: 1000 / 1800; border-radius: var(--radius); overflow: hidden; background: #f8e8d6; box-shadow: 0 4px 16px rgba(60, 50, 90, .12); margin-top: 6px; }
 .hm-room, .hm-room svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .hm-actor { position: absolute; width: 9%; aspect-ratio: 80 / 92; padding: 0; border: 0; background: none; transform: translate(-50%, -100%); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .hm-fig { position: absolute; inset: 0; display: block; transition: transform .2s; }
@@ -423,7 +423,7 @@ main { position: relative; z-index: 1; }
 .hm-bub { position: absolute; left: 50%; bottom: 104%; transform: translateX(-50%) scale(.6); opacity: 0; pointer-events: none; background: #fff; border: 1.5px solid #e6d4c4; border-radius: 1em; padding: .3em .7em; font-size: clamp(11px, 1.7vw, 15px); font-weight: 600; color: #4a3a30; white-space: nowrap; box-shadow: 0 2px 6px rgba(90, 60, 40, .15); transition: opacity .2s, transform .2s; z-index: 2; }
 .hm-bub.show { opacity: 1; transform: translateX(-50%) scale(1); }
 .hm-bub.below { bottom: auto; top: 104%; }
-.hm-lift { position: absolute; left: 84.6%; width: 12%; height: 11.34%; z-index: 2900; pointer-events: none; box-sizing: border-box; overflow: visible;
+.hm-lift { position: absolute; left: 84.6%; width: 12%; height: 9.45%; z-index: 2900; pointer-events: none; box-sizing: border-box; overflow: visible;
   background: linear-gradient(#fff6e8, #ffe9c4); border: 2.5px solid #e0a82e; border-radius: 6px; box-shadow: 0 3px 8px rgba(90, 70, 50, .25); transition: box-shadow .3s; }
 .hm-lift.open { box-shadow: 0 0 14px rgba(255, 214, 107, .95); }
 .hm-lift::before { content: ''; position: absolute; left: 12%; right: 12%; top: 16%; height: 4%; background: #fff; border-radius: 3px; opacity: .8; }
@@ -442,6 +442,10 @@ main { position: relative; z-index: 1; }
 .hb-leaf { animation: hbSway 4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
 @keyframes hbSway { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
 .hb-tree { animation: hbSway 5s ease-in-out infinite alternate; }
+.hb-stamp { animation: hbStamp 2.6s ease-in-out infinite; }
+@keyframes hbStamp { 0%, 50%, 100% { transform: translateY(-10px); } 70%, 78% { transform: translateY(0); } }
+.hb-cash { animation: hbCash 3s ease-in-out infinite; transform-box: fill-box; transform-origin: top; }
+@keyframes hbCash { 0%, 30% { transform: scaleY(0); } 60%, 85% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
 .hb-car { animation: hbCar 13s linear infinite; }
 @keyframes hbCar { from { transform: translateX(-120px); } to { transform: translateX(1150px); } }
 @media (prefers-reduced-motion: reduce) { .hb-car, .hb-leaf, .hb-tree, .hb-steam, .hb-drip { animation: none; } }

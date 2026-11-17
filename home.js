@@ -2,10 +2,10 @@
 // 依賴 app.js 的全域：monthRecords、current、months、monthData、allLoaded、accounts、balancesAsOf、
 // isStockAcc、groupSum、sum、money、esc、catText、drawChart、todayIso、sheetOrder、mergeDividendFees
 
-// ── 大樓設定（座標以 1000 × 1500 的大樓剖面為準）────────────────────
-// 由上到下：屋頂、4F 股票交易室、3F 分析室、2F 老闆辦公室、1F 記帳大廳、街道
-const HM_W = 1000, HM_H = 1500;
-const HM_FT = { 4: 140, 3: 440, 2: 740, 1: 1040 };          // 各樓層天花板 y
+// ── 大樓設定（座標以 1000 × 1800 的大樓剖面為準）────────────────────
+// 由上到下：屋頂、5F 轉帳中心、4F 股票交易室、3F 分析室、2F 老闆辦公室、1F 記帳大廳、街道
+const HM_W = 1000, HM_H = 1800;
+const HM_FT = { 5: 140, 4: 440, 3: 740, 2: 1040, 1: 1340 };          // 各樓層天花板 y
 const HM_FH = 300;
 const hmFL = f => HM_FT[f] + 280;                            // 該樓層地板線（站立的 y）
 const hmFeet = hmFL;
@@ -15,15 +15,17 @@ const HM_SPOTS = {
   chart: [560, 3], board: [300, 3], shelf: [740, 3],
   me: [480, 2], sofa: [730, 2], window: [210, 2],
   book: [320, 1], coffee: [545, 1], notice: [720, 1], door: [110, 1],
-  meetBook: [385, 2], meetChart: [575, 2], meetStock: [610, 2],
+  xfer: [400, 5], tube: [150, 5], atm: [600, 5], lockers: [730, 5],
+  meetBook: [385, 2], meetChart: [575, 2], meetStock: [610, 2], meetXfer: [385, 2],
 };
 const HM_ACTORS = [
   { id: 'me', name: '我', role: '老闆', seat: 'me', look: { skin: '#fcdcc4', hair: '#1f1d24', hs: 'side', cloth: '#3b4a6b', tie: '#ef7d9a', g: 'm' } },
   { id: 'book', name: '小記', role: '記帳員', seat: 'book', look: { skin: '#ffe4d0', hair: '#5b3a29', hs: 'bob', cloth: '#f7a8c0', g: 'f', glasses: true } },
   { id: 'chart', name: '小分', role: '分析員', seat: 'chart', look: { skin: '#fcdcc4', hair: '#2e2a30', hs: 'pony', cloth: '#9fd0f0', g: 'f' } },
+  { id: 'xfer', name: '小轉', role: '轉帳交易員', seat: 'xfer', look: { skin: '#fbdcc6', hair: '#7a4b2e', hs: 'side', cloth: '#c9a0e6', tie: '#7fd6e6', g: 'm' } },
   { id: 'stock', name: '小股', role: '股票員', seat: 'stock', look: { skin: '#f6d2b8', hair: '#3b2f2f', hs: 'short', cloth: '#4f6f5f', tie: '#ffd66b', g: 'm' } },
 ];
-const HM_FLOOR_NAME = { 4: '4F 股票交易室', 3: '3F 分析室', 2: '2F 老闆辦公室', 1: '1F 記帳大廳' };
+const HM_FLOOR_NAME = { 5: '5F 轉帳中心', 4: '4F 股票交易室', 3: '3F 分析室', 2: '2F 老闆辦公室', 1: '1F 記帳大廳' };
 const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
 const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
 
@@ -86,7 +88,14 @@ function hmData() {
     const yr = today.slice(0, 4);
     divYear = sum(mergeDividendFees(all.filter(r => String(r.iso || '').startsWith(yr))).filter(r => r.type === '轉帳' && /股息/.test(r.item || '')), 'transfer');
   }
-  return { recs, inc, exp, cats, incCats, todayCount, latest, biggest, isNow, prevSame, prevTotal, prevSheet, stockBal, divYear, count: recs.length };
+  // 轉帳：本月筆數、總額、最常走的路線、最新一筆；各帳戶餘額
+  const xfers = recs.filter(r => r.type === '轉帳');
+  const xferTotal = sum(xfers, 'transfer');
+  const routes = groupSum(xfers, r => `${r.account || '?'}→${r.toAccount || '?'}`, 'transfer');
+  const latestXfer = xfers.slice().sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : (b.row || 0) - (a.row || 0)))[0] || null;
+  let accBal = [];
+  if (allLoaded && accounts.length) accBal = Object.entries(balancesAsOf(today)).filter(([, v]) => Math.round(v)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4);
+  return { recs, inc, exp, cats, incCats, todayCount, latest, biggest, isNow, prevSame, prevTotal, prevSheet, stockBal, divYear, count: recs.length, xfers, xferTotal, routes, latestXfer, accBal };
 }
 
 // ── 台詞 ────────────────────────────────────────────────────
@@ -112,6 +121,16 @@ function hmLine(id, d) {
     d.inc ? `收入 ${hmShortMoney(d.inc)}，花掉 ${pct(d.exp, d.inc)}% 💡` : '這個月還沒有收入入帳 💡',
     d.prevSame != null && d.isNow ? (d.exp > d.prevSame ? `比上月同期多花 ${hmShortMoney(d.exp - d.prevSame)} ⚠️` : `比上月同期少花 ${hmShortMoney(d.prevSame - d.exp)} 👍`) : '數字整理好了 ✨',
   ]);
+  if (id === 'xfer') {
+    const lx = d.latestXfer, rt = d.routes[0];
+    return pk([
+      d.xfers.length ? `這個月轉帳 ${d.xfers.length} 筆，共 ${hmShortMoney(d.xferTotal)} 🔁` : '這個月還沒有轉帳，櫃台好清閒 🔁',
+      lx ? `最新一筆：${lx.account} → ${lx.toAccount}，${hmShortMoney(lx.transfer)} 💸` : '轉帳單都蓋好章了 🖋️',
+      rt ? `最常走的路線：${rt[0].replace('→', ' → ')} 🚚` : '錢只是換個口袋，不是花掉喔 👛',
+      d.accBal[0] ? `目前最多錢的是「${d.accBal[0][0]}」${hmShortMoney(d.accBal[0][1])} 🏦` : '帳戶餘額整理中… 🏦',
+      '轉帳不算支出，別搞混囉 😉', '氣送管咻～一聲就送到了 🚀',
+    ]);
+  }
   return pk([
     d.stockBal != null ? `股票帳戶現在 ${hmShortMoney(d.stockBal)} 📈` : '股票資料還在載入中… 📈',
     d.divYear ? `今年領了股息 ${hmShortMoney(d.divYear)} 💰` : '今年還沒領到股息，再等等 🌱',
@@ -128,6 +147,10 @@ function hmReport(id, d) {
   if (id === 'chart') return [
     { who: 'chart', text: top ? `報告！這個月 ${catText(top[0])} 花最多，${hmShortMoney(top[1])} 📊` : '報告！這個月還沒有支出 📊' },
     { who: 'me', text: top ? pk(['原來錢都跑去那了 😳', '嗯…下個月注意一下', '還在預期內 😌']) : '太好了 😎' },
+  ];
+  if (id === 'xfer') return [
+    { who: 'xfer', text: d.xfers.length ? `老闆～這個月轉了 ${d.xfers.length} 筆，共 ${hmShortMoney(d.xferTotal)} 🔁` : '老闆～這個月還沒有轉帳喔 🔁' },
+    { who: 'me', text: pk(['錢有乖乖到位就好 👌', '辛苦了，記得對一下餘額 🧾', '轉來轉去別轉丟了 😆']) },
   ];
   return [
     { who: 'stock', text: d.divYear ? `今年股息累積 ${hmShortMoney(d.divYear)} 了！💰` : '今天市場還算平靜 📈' },
@@ -205,7 +228,7 @@ function hmTick(now) {
     if (Math.abs(dy) <= step) { hmLift.y = hmLift.target; hmLift.target = null; const f = hmLift.done; hmLift.done = null; if (f) f(); }
     else hmLift.y += Math.sign(dy) * step;
     hmLiftPos();
-    const fl = [1, 2, 3, 4].reduce((b, f) => (Math.abs(HM_FT[f] - hmLift.y) < Math.abs(HM_FT[b] - hmLift.y) ? f : b), 1);
+    const fl = [1, 2, 3, 4, 5].reduce((b, f) => (Math.abs(HM_FT[f] - hmLift.y) < Math.abs(HM_FT[b] - hmLift.y) ? f : b), 1);
     $('hmLiftInd').textContent = (hmLift.target == null ? '' : hmLift.target < hmLift.y ? '▲ ' : '▼ ') + `${fl}F`;
   }
   Object.values(hmActors).forEach(a => {
@@ -236,7 +259,7 @@ async function hmIdle() {
       const boss = hmActors.me;
       boss.busy = true;
       try {
-        await hmGo(a.id, a.id === 'book' ? 'meetBook' : a.id === 'chart' ? 'meetChart' : 'meetStock');
+        await hmGo(a.id, ({ book: 'meetBook', chart: 'meetChart', stock: 'meetStock', xfer: 'meetXfer' })[a.id]);
         a.figEl.classList.toggle('flip', a.pos[0] > boss.pos[0]);
         boss.figEl.classList.toggle('flip', a.pos[0] < boss.pos[0]);
         for (const ln of hmReport(a.id, d)) { hmSay(ln.who, ln.text, 2800); await hmWait(2300); }
@@ -244,13 +267,13 @@ async function hmIdle() {
       await hmGo(a.id, a.seat);
     } else if (a.id === 'me' && r < 0.5) {
       // 老闆巡樓：倒咖啡、看白板、看盤、窗邊、沙發
-      const where = pk(['coffee', 'board', 'monitor', 'window', 'sofa', 'notice', 'vault']);
+      const where = pk(['coffee', 'board', 'monitor', 'window', 'sofa', 'notice', 'vault', 'atm']);
       await hmGo('me', where);
       const text = {
         coffee: '來杯咖啡提神 ☕', board: d.cats[0] ? `原來${catText(d.cats[0][0])}花最多…` : '白板好乾淨 ✨',
         monitor: d.stockBal != null ? `股票帳戶 ${hmShortMoney(d.stockBal)}…穩住 📈` : '看一下盤 📈',
         window: hmNight() ? '夜景好美 🌃' : '今天天氣不錯 🌤️', sofa: '休息一下～ 🛋️',
-        notice: d.latest ? `最新一筆是「${d.latest.item}」` : '公告欄空空的 📌', vault: d.inc - d.exp >= 0 ? '小豬撲滿又變胖了 🐷' : '撲滿要節食了 🐷',
+        atm: d.xfers.length ? `這個月轉了 ${hmShortMoney(d.xferTotal)}，錢有到位 🏧` : '來 ATM 看看餘額 🏧', notice: d.latest ? `最新一筆是「${d.latest.item}」` : '公告欄空空的 📌', vault: d.inc - d.exp >= 0 ? '小豬撲滿又變胖了 🐷' : '撲滿要節食了 🐷',
       }[where];
       hmSay('me', text, 3200);
       a.el.classList.add(where === 'sofa' ? 'rest' : 'happy');
@@ -262,12 +285,13 @@ async function hmIdle() {
       await hmGo('me', 'me');
     } else if (a.id !== 'me' && r < 0.5) {
       // 小幫手在自己樓層走動做事
-      const near = { book: ['coffee', 'notice', 'door'], chart: ['board', 'shelf'], stock: ['monitor', 'vault'] }[a.id];
+      const near = { book: ['coffee', 'notice', 'door'], chart: ['board', 'shelf'], stock: ['monitor', 'vault'], xfer: ['tube', 'atm', 'lockers'] }[a.id];
       const where = pk(near);
       await hmGo(a.id, where);
       hmSay(a.id, {
         coffee: '泡杯咖啡再繼續記 ☕', notice: '把最新的帳貼上公告欄 📌', door: '去信箱拿帳單 📬',
         board: '把白板的數字更新一下 ✏️', shelf: '翻一下上個月的報表 📚', monitor: '盯盤中…綠油油的別嚇我 😵', vault: '數數存錢筒 🐷',
+        tube: '用氣送管把轉帳單送出去 🚀', atm: '確認一下 ATM 有沒有入帳 🏧', lockers: '核對各帳戶的餘額 🗂️',
       }[where], 2800);
       a.el.classList.add('happy');
       await hmWait(2600);
@@ -285,7 +309,7 @@ async function hmIdle() {
 // ── 大樓畫面 ─────────────────────────────────────────────────
 // 畫法參考共同帳本的辦公室：粉嫩色牆面、木頭樓板、每層一扇電梯門、街道與馬路
 function hmT(s, n) { const a = [...String(s || '')]; return esc(a.length > n ? a.slice(0, n - 1).join('') + '…' : a.join('')); }
-const HM_WALL = { 4: ['#e9f2fc', '#c9d9ec', '#dce8f6'], 3: ['#fff4e2', '#e8d2b0', '#f8e8cf'], 2: ['#fdebf1', '#efcbd8', '#f8dbe5'], 1: ['#e9f6f0', '#c4e2d4', '#d9efe4'] };
+const HM_WALL = { 5: ['#f1ecfb', '#d9cfee', '#e6def6'], 4: ['#e9f2fc', '#c9d9ec', '#dce8f6'], 3: ['#fff4e2', '#e8d2b0', '#f8e8cf'], 2: ['#fdebf1', '#efcbd8', '#f8dbe5'], 1: ['#e9f6f0', '#c4e2d4', '#d9efe4'] };
 // 盆栽（同共同帳本的葉子畫法）
 function hmPlant(cx, fl, k = 1, flower = false) {
   return `<g transform="translate(${cx} ${fl}) scale(${k})">
@@ -344,14 +368,14 @@ function hmDrawBuilding(d) {
   const night = hmNight();
   const now = new Date();
   const T = HM_FT, FL = hmFL;
-  const TOP = T[4], BOT = T[1] + HM_FH;
+  const TOP = T[5], BOT = T[1] + HM_FH;
   const P = [];
   const sky = night ? ['#1b2150', '#3b3f72'] : now.getHours() >= 16 ? ['#ffb79a', '#ffe8cc'] : ['#bfe3ff', '#fff3e0'];
   const cloud = (x, y, k) => `<g fill="#fff" opacity=".95"><ellipse cx="${x}" cy="${y}" rx="${70 * k}" ry="${22 * k}"/><ellipse cx="${x - 40 * k}" cy="${y - 14 * k}" rx="${40 * k}" ry="${26 * k}"/><ellipse cx="${x + 30 * k}" cy="${y - 10 * k}" rx="${34 * k}" ry="${22 * k}"/></g>`;
   P.push(`<defs><linearGradient id="hbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
     <linearGradient id="hbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7d77a"/><stop offset=".5" stop-color="#e0a82e"/><stop offset="1" stop-color="#f2c75c"/></linearGradient>
     <linearGradient id="hbGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3f3fb"/><stop offset="1" stop-color="#b9dcec"/></linearGradient>
-    <clipPath id="hbTick"><rect x="226" y="${TOP + 20}" width="584" height="30" rx="6"/></clipPath></defs>
+    <clipPath id="hbTick"><rect x="226" y="${T[4] + 20}" width="584" height="30" rx="6"/></clipPath></defs>
     <rect width="${HM_W}" height="${HM_H}" fill="url(#hbSky)"/>`);
   // 太陽／月亮、遠方的城市、雲、鳥
   P.push(night
@@ -373,7 +397,7 @@ function hmDrawBuilding(d) {
   // 外牆
   P.push(`<rect x="20" y="${TOP}" width="960" height="${BOT - TOP}" fill="#e6d3bd"/>`);
   // 各樓層：牆、腰板、地板、樓板、天花燈、樓層牌
-  [4, 3, 2, 1].forEach(f => {
+  [5, 4, 3, 2, 1].forEach(f => {
     const w = HM_WALL[f], fl = FL(f), t = T[f];
     P.push(`<rect x="36" y="${t + 8}" width="790" height="${fl - t - 8}" rx="8" fill="${w[0]}"/>
       <rect x="36" y="${fl - 64}" width="790" height="64" fill="${w[2]}"/><rect x="36" y="${fl - 68}" width="790" height="6" fill="#fff" opacity=".7"/>
@@ -383,8 +407,59 @@ function hmDrawBuilding(d) {
       <text x="128" y="${t + 43}" font-size="20" font-weight="800" text-anchor="middle" fill="#6b5a4c">${HM_FLOOR_NAME[f]}</text>`);
   });
 
+  // ── 5F 轉帳中心：氣送管、轉帳路線看板、轉帳櫃台、ATM、帳戶保管箱 ──
+  let t = T[5], fl = FL(5);
+  const rts = d.routes.slice(0, 4);
+  const rtRows = rts.map(([k, v], i) => {
+    const [from, to] = k.split('→');
+    return `<g transform="translate(0 ${i * 26})"><rect x="244" y="${t + 88}" width="300" height="22" rx="4" fill="${i % 2 ? '#232c3b' : '#1c2433'}"/>
+      <text x="252" y="${t + 104}" font-size="14" font-weight="700" fill="#ffd66b">${hmT(from, 5)}</text>
+      <text x="340" y="${t + 104}" font-size="14" fill="#7fd6e6" text-anchor="middle">➜</text>
+      <text x="358" y="${t + 104}" font-size="14" font-weight="700" fill="#c9a0e6">${hmT(to, 5)}</text>
+      <text x="536" y="${t + 104}" font-size="14" font-weight="700" fill="#fff" text-anchor="end" font-family="monospace">${hmShortMoney(v)}</text></g>`;
+  }).join('') || `<text x="394" y="${t + 132}" text-anchor="middle" font-size="16" fill="#7d8a99">這個月還沒有轉帳</text>`;
+  const lockers = [0, 1, 2, 3].map(i => {
+    const a = d.accBal[i], x = 656 + (i % 2) * 76, y = fl - 196 + Math.floor(i / 2) * 92;
+    return `<rect x="${x}" y="${y}" width="68" height="84" rx="6" fill="#dfe5eb" stroke="#9aa8b6" stroke-width="2"/><rect x="${x + 6}" y="${y + 8}" width="56" height="20" rx="3" fill="#fff"/>
+      <text x="${x + 34}" y="${y + 22}" text-anchor="middle" font-size="11" font-weight="700" fill="#5b6475">${a ? hmT(a[0], 4) : '空'}</text>
+      <text x="${x + 34}" y="${y + 50}" text-anchor="middle" font-size="12" font-weight="800" fill="${a && a[1] < 0 ? '#16a34a' : '#8a5fb5'}">${a ? hmShortMoney(a[1]) : '—'}</text>
+      <circle cx="${x + 34}" cy="${y + 68}" r="6" fill="#c5d0db" stroke="#7d8a99" stroke-width="2"/><rect x="${x + 33}" y="${y + 64}" width="2" height="5" fill="#7d8a99"/>`;
+  }).join('');
+  const lx = d.latestXfer;
+  P.push(`<g><path id="hbTubeP" d="M84 ${fl - 70} V${t + 96} Q84 ${t + 76} 104 ${t + 76} H176 Q196 ${t + 76} 196 ${t + 96} V${fl - 70}" fill="none" stroke="#bfe8f0" stroke-width="26" stroke-linecap="round" opacity=".75"/>
+      <path d="M84 ${fl - 70} V${t + 96} Q84 ${t + 76} 104 ${t + 76} H176 Q196 ${t + 76} 196 ${t + 96} V${fl - 70}" fill="none" stroke="#fff" stroke-width="5" opacity=".7" transform="translate(-6 0)"/>
+      ${[t + 120, t + 170].map(y => `<rect x="68" y="${y}" width="32" height="8" rx="3" fill="#9aa8b6"/><rect x="180" y="${y}" width="32" height="8" rx="3" fill="#9aa8b6"/>`).join('')}
+      <g><rect x="-9" y="-16" width="18" height="32" rx="9" fill="#ffd66b" stroke="#e0a82e" stroke-width="2"/><rect x="-9" y="-3" width="18" height="6" fill="#ef7d9a"/>
+        <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1;1;0;0" keyTimes="0;.4;.5;.9;1" calcMode="linear"><mpath href="#hbTubeP"/></animateMotion></g>
+      ${[84, 196].map(x => `<rect x="${x - 26}" y="${fl - 74}" width="52" height="74" rx="8" fill="#c5d0db"/><rect x="${x - 20}" y="${fl - 66}" width="40" height="30" rx="5" fill="#e9f6fb"/><rect x="${x - 26}" y="${fl - 30}" width="52" height="6" fill="#9aa8b6"/><circle cx="${x}" cy="${fl - 14}" r="4" fill="${x < 100 ? '#8fd3b0' : '#ef7d7d'}"/>`).join('')}
+      <text x="84" y="${fl - 46}" text-anchor="middle" font-size="11" font-weight="700" fill="#5b6475">送出</text><text x="196" y="${fl - 46}" text-anchor="middle" font-size="11" font-weight="700" fill="#5b6475">收件</text></g>
+    <g><rect x="234" y="${t + 46}" width="320" height="${Math.max(2, rts.length) * 26 + 54}" rx="10" fill="#2f3845"/><rect x="240" y="${t + 52}" width="308" height="${Math.max(2, rts.length) * 26 + 42}" rx="6" fill="#141b26"/>
+      <text x="252" y="${t + 76}" font-size="15" font-weight="800" fill="#7fd6e6">🔁 本月轉帳路線</text>
+      <text x="536" y="${t + 76}" font-size="13" font-weight="700" fill="#9aa8b6" text-anchor="end">${d.xfers.length} 筆 · ${hmShortMoney(d.xferTotal)}</text>${rtRows}
+      ${[300, 490].map(x => `<rect x="${x - 3}" y="${t + 36}" width="6" height="12" fill="#7d8a99"/>`).join('')}</g>
+    ${hmChair(400, fl, '#c9a0e6', '#a984cf')}
+    <ellipse cx="410" cy="${fl}" rx="120" ry="6" fill="rgba(90,70,50,.12)"/>
+    <rect x="296" y="${fl - 96}" width="228" height="16" rx="6" fill="#f8e1f0"/><rect x="300" y="${fl - 96}" width="220" height="4" rx="2" fill="#fff" opacity=".6"/>
+    <rect x="304" y="${fl - 80}" width="212" height="80" rx="6" fill="#c9a0e6"/><rect x="304" y="${fl - 80}" width="212" height="12" fill="#b48ad9"/>
+    <circle cx="410" cy="${fl - 36}" r="18" fill="#fff"/><text x="410" y="${fl - 29}" text-anchor="middle" font-size="18">🔁</text>
+    <g transform="translate(330 ${fl - 96})"><rect x="-22" y="-4" width="44" height="4" fill="#fff" stroke="#d9c7b0" stroke-width="1"/><rect x="-20" y="-8" width="40" height="5" fill="#fff" stroke="#d9c7b0" stroke-width="1"/>
+      <text x="0" y="-10" text-anchor="middle" font-size="7" fill="#8a5fb5">轉帳單</text></g>
+    <g transform="translate(372 ${fl - 96})"><rect x="-12" y="-2" width="24" height="2" rx="1" fill="#ef5f7a" opacity=".5"/><g class="hb-stamp"><rect x="-6" y="-26" width="12" height="16" rx="5" fill="#8a5a3b"/><rect x="-11" y="-12" width="22" height="10" rx="3" fill="#ef5f7a"/></g></g>
+    <g transform="translate(470 ${fl - 96})"><rect x="-30" y="-40" width="60" height="40" rx="5" fill="#5b6475"/><rect x="-25" y="-35" width="50" height="22" rx="3" fill="#1f2a3a"/>
+      <text x="0" y="-19" text-anchor="middle" font-size="9" font-weight="700" fill="#7fffd0">${lx ? hmShortMoney(lx.transfer) : '待命'}</text>
+      ${[0, 1, 2].map(i => `<rect x="${-22 + i * 16}" y="-10" width="12" height="6" rx="2" fill="${['#8fd3b0', '#ffd66b', '#ef7d7d'][i]}"/>`).join('')}</g>
+    <g transform="translate(600 ${fl})"><ellipse cx="0" cy="0" rx="42" ry="5" fill="rgba(90,70,50,.14)"/>
+      <rect x="-36" y="-176" width="72" height="176" rx="8" fill="#5f9ee6"/><rect x="-36" y="-176" width="72" height="26" rx="8" fill="#3f78bd"/><text x="0" y="-158" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">ATM</text>
+      <rect x="-26" y="-142" width="52" height="40" rx="4" fill="#1f2a3a"/><text x="0" y="-126" text-anchor="middle" font-size="9" fill="#9aa8b6">餘額</text>
+      <text x="0" y="-111" text-anchor="middle" font-size="11" font-weight="800" fill="#7fffd0">${d.accBal.length ? hmShortMoney(d.accBal.reduce((s, [, v]) => s + v, 0)) : '***'}</text>
+      <rect x="-26" y="-94" width="52" height="30" rx="4" fill="#dfe5eb"/>${[...Array(9)].map((_, i) => `<rect x="${-22 + (i % 3) * 16}" y="${-91 + Math.floor(i / 3) * 9}" width="12" height="6" rx="1.5" fill="#9aa8b6"/>`).join('')}
+      <rect x="-20" y="-56" width="40" height="6" rx="3" fill="#1f2a3a"/><rect x="-14" y="-52" width="28" height="12" rx="2" fill="#a8e0c0" class="hb-cash"/>
+      <rect x="-30" y="-30" width="60" height="24" rx="4" fill="#3f78bd"/></g>
+    <g><ellipse cx="730" cy="${fl}" rx="84" ry="6" fill="rgba(90,70,50,.12)"/><rect x="648" y="${fl - 206}" width="164" height="206" rx="8" fill="#9aa8b6"/>${lockers}
+      <rect x="676" y="${fl - 232}" width="108" height="22" rx="7" fill="#8a5fb5"/><text x="730" y="${fl - 216}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">各帳戶餘額</text></g>`);
+
   // ── 4F 股票交易室：跑馬燈、三台壁掛螢幕、交易桌、保險箱 ──
-  let t = T[4], fl = FL(4);
+  t = T[4]; fl = FL(4);
   const candles = [...Array(9)].map((_, i) => {
     const up = (i * 5 + 2) % 3 !== 0, h = 12 + (i * 13) % 22, x = 414 + i * 20, top = t + 100 - (i * 7) % 24 - i * 2;
     return `<path d="M${x + 5} ${top - 8} v${h + 16}" stroke="${up ? '#f87171' : '#4ade80'}" stroke-width="2"/><rect x="${x}" y="${top}" width="10" height="${h}" rx="1.5" fill="${up ? '#f87171' : '#4ade80'}"/>`;
@@ -555,7 +630,7 @@ function hmDrawBuilding(d) {
 
   // ── 電梯井：每層一扇門、樓層燈、呼叫鈕 ──
   P.push(`<rect x="832" y="${TOP}" width="148" height="${BOT - TOP}" fill="#cdbba6"/><path d="M848 ${TOP} v${BOT - TOP} M964 ${TOP} v${BOT - TOP}" stroke="#b39f88" stroke-width="5"/>`);
-  [4, 3, 2, 1].forEach(f => {
+  [5, 4, 3, 2, 1].forEach(f => {
     const y = FL(f);
     P.push(`<rect x="840" y="${y - 178}" width="132" height="178" rx="8" fill="#9aa8b6"/><rect x="840" y="${y - 178}" width="132" height="6" rx="3" fill="#c5d0db"/>
       <rect x="846" y="${y - 170}" width="60" height="170" fill="#c5d0db"/><rect x="906" y="${y - 170}" width="60" height="170" fill="#c5d0db"/>
