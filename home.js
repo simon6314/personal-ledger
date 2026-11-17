@@ -3,20 +3,22 @@
 // isStockAcc、groupSum、sum、money、esc、catText、drawChart、todayIso、sheetOrder、mergeDividendFees
 
 // ── 大樓設定（座標以 1000 × 1800 的大樓剖面為準）────────────────────
-// 由上到下：屋頂、5F 轉帳中心、4F 股票交易室、3F 分析室、2F 老闆辦公室、1F 記帳大廳、街道
+// 由上到下：屋頂、5F 老闆辦公室、4F 轉帳中心、3F 股票交易室、2F 分析室、1F 記帳大廳、街道（樓層對應見 HM_ROOM）
 const HM_W = 1000, HM_H = 1800;
 const HM_FT = { 5: 140, 4: 440, 3: 740, 2: 1040, 1: 1340 };          // 各樓層天花板 y
 const HM_FH = 300;
 const hmFL = f => HM_FT[f] + 280;                            // 該樓層地板線（站立的 y）
 const hmFeet = hmFL;
 const HM_LIFT_X = 906, HM_LIFT_DOOR = 806;                    // 電梯車廂中心、電梯門口
+// 每個房間在幾樓（老闆辦公室在頂樓）
+const HM_ROOM = { boss: 5, xfer: 4, stock: 3, chart: 2, hall: 1 };
 const HM_SPOTS = {
-  stock: [380, 4], monitor: [520, 4], vault: [690, 4],
-  chart: [560, 3], board: [300, 3], shelf: [740, 3],
-  me: [480, 2], sofa: [730, 2], window: [210, 2],
-  book: [320, 1], coffee: [545, 1], notice: [720, 1], door: [110, 1],
-  xfer: [400, 5], tube: [150, 5], atm: [600, 5], lockers: [730, 5],
-  meetBook: [385, 2], meetChart: [575, 2], meetStock: [610, 2], meetXfer: [385, 2],
+  stock: [380, HM_ROOM.stock], monitor: [520, HM_ROOM.stock], vault: [690, HM_ROOM.stock],
+  chart: [560, HM_ROOM.chart], board: [300, HM_ROOM.chart], shelf: [740, HM_ROOM.chart],
+  me: [480, HM_ROOM.boss], sofa: [730, HM_ROOM.boss], window: [210, HM_ROOM.boss],
+  book: [320, HM_ROOM.hall], coffee: [545, HM_ROOM.hall], notice: [720, HM_ROOM.hall], door: [110, HM_ROOM.hall],
+  xfer: [400, HM_ROOM.xfer], tube: [150, HM_ROOM.xfer], atm: [600, HM_ROOM.xfer], lockers: [730, HM_ROOM.xfer],
+  meetBook: [385, HM_ROOM.boss], meetChart: [575, HM_ROOM.boss], meetStock: [610, HM_ROOM.boss], meetXfer: [385, HM_ROOM.boss],
 };
 const HM_ACTORS = [
   { id: 'me', name: '我', role: '老闆', seat: 'me', look: { skin: '#fcdcc4', hair: '#1f1d24', hs: 'side', cloth: '#3b4a6b', tie: '#ef7d9a', g: 'm' } },
@@ -25,7 +27,7 @@ const HM_ACTORS = [
   { id: 'xfer', name: '小轉', role: '轉帳交易員', seat: 'xfer', look: { skin: '#fbdcc6', hair: '#7a4b2e', hs: 'side', cloth: '#c9a0e6', tie: '#7fd6e6', g: 'm' } },
   { id: 'stock', name: '小股', role: '股票員', seat: 'stock', look: { skin: '#f6d2b8', hair: '#3b2f2f', hs: 'short', cloth: '#4f6f5f', tie: '#ffd66b', g: 'm' } },
 ];
-const HM_FLOOR_NAME = { 5: '5F 轉帳中心', 4: '4F 股票交易室', 3: '3F 分析室', 2: '2F 老闆辦公室', 1: '1F 記帳大廳' };
+const HM_FLOOR_NAME = Object.fromEntries(Object.entries({ boss: '老闆辦公室', xfer: '轉帳中心', stock: '股票交易室', chart: '分析室', hall: '記帳大廳' }).map(([k, n]) => [HM_ROOM[k], `${HM_ROOM[k]}F ${n}`]));
 const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
 const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
 
@@ -254,7 +256,7 @@ async function hmIdle() {
   const r = Math.random();
   a.busy = true;
   try {
-    if (a.id !== 'me' && r < 0.32 && !hmActors.me.busy && hmActors.me.floor === 2) {
+    if (a.id !== 'me' && r < 0.32 && !hmActors.me.busy && hmActors.me.floor === HM_ROOM.boss) {
       // 搭電梯去 2F 找老闆報告
       const boss = hmActors.me;
       boss.busy = true;
@@ -309,7 +311,7 @@ async function hmIdle() {
 // ── 大樓畫面 ─────────────────────────────────────────────────
 // 畫法參考共同帳本的辦公室：粉嫩色牆面、木頭樓板、每層一扇電梯門、街道與馬路
 function hmT(s, n) { const a = [...String(s || '')]; return esc(a.length > n ? a.slice(0, n - 1).join('') + '…' : a.join('')); }
-const HM_WALL = { 5: ['#f1ecfb', '#d9cfee', '#e6def6'], 4: ['#e9f2fc', '#c9d9ec', '#dce8f6'], 3: ['#fff4e2', '#e8d2b0', '#f8e8cf'], 2: ['#fdebf1', '#efcbd8', '#f8dbe5'], 1: ['#e9f6f0', '#c4e2d4', '#d9efe4'] };
+const HM_WALL = Object.fromEntries(Object.entries({ xfer: ['#f1ecfb', '#d9cfee', '#e6def6'], stock: ['#e9f2fc', '#c9d9ec', '#dce8f6'], chart: ['#fff4e2', '#e8d2b0', '#f8e8cf'], boss: ['#fdebf1', '#efcbd8', '#f8dbe5'], hall: ['#e9f6f0', '#c4e2d4', '#d9efe4'] }).map(([k, v]) => [HM_ROOM[k], v]));
 // 盆栽（同共同帳本的葉子畫法）
 function hmPlant(cx, fl, k = 1, flower = false) {
   return `<g transform="translate(${cx} ${fl}) scale(${k})">
@@ -375,7 +377,7 @@ function hmDrawBuilding(d) {
   P.push(`<defs><linearGradient id="hbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
     <linearGradient id="hbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7d77a"/><stop offset=".5" stop-color="#e0a82e"/><stop offset="1" stop-color="#f2c75c"/></linearGradient>
     <linearGradient id="hbGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3f3fb"/><stop offset="1" stop-color="#b9dcec"/></linearGradient>
-    <clipPath id="hbTick"><rect x="278" y="${T[4] + 16}" width="534" height="36" rx="6"/></clipPath></defs>
+    <clipPath id="hbTick"><rect x="278" y="${T[HM_ROOM.stock] + 16}" width="534" height="36" rx="6"/></clipPath></defs>
     <rect width="${HM_W}" height="${HM_H}" fill="url(#hbSky)"/>`);
   // 太陽／月亮、遠方的城市、雲、鳥
   P.push(night
@@ -407,8 +409,8 @@ function hmDrawBuilding(d) {
       <text x="${44 + ([...HM_FLOOR_NAME[f]].length * 25 + 26) / 2}" y="${t + 42}" font-size="26" font-weight="800" text-anchor="middle" fill="#6b5a4c">${HM_FLOOR_NAME[f]}</text>`);
   });
 
-  // ── 5F 轉帳中心：氣送管、轉帳路線看板、轉帳櫃台、ATM、帳戶保管箱 ──
-  let t = T[5], fl = FL(5);
+  // ── 轉帳中心（4F）：氣送管、轉帳路線看板、轉帳櫃台、ATM、帳戶保管箱 ──
+  let t = T[HM_ROOM.xfer], fl = FL(HM_ROOM.xfer);
   const rts = d.routes.slice(0, 3);
   const rtRows = rts.map(([k, v], i) => {
     const [from, to] = k.split('→');
@@ -458,8 +460,8 @@ function hmDrawBuilding(d) {
     <g><ellipse cx="730" cy="${fl}" rx="84" ry="6" fill="rgba(90,70,50,.12)"/><rect x="648" y="${fl - 206}" width="164" height="206" rx="8" fill="#9aa8b6"/>${lockers}
       <rect x="662" y="${fl - 238}" width="136" height="28" rx="8" fill="#8a5fb5"/><text x="730" y="${fl - 218}" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">各帳戶餘額</text></g>`);
 
-  // ── 4F 股票交易室：跑馬燈、三台壁掛螢幕、交易桌、保險箱 ──
-  t = T[4]; fl = FL(4);
+  // ── 股票交易室（3F）：跑馬燈、三台壁掛螢幕、交易桌、保險箱 ──
+  t = T[HM_ROOM.stock]; fl = FL(HM_ROOM.stock);
   const candles = [...Array(9)].map((_, i) => {
     const up = (i * 5 + 2) % 3 !== 0, h = 12 + (i * 13) % 22, x = 414 + i * 20, top = t + 100 - (i * 7) % 24 - i * 2;
     return `<path d="M${x + 5} ${top - 8} v${h + 16}" stroke="${up ? '#f87171' : '#4ade80'}" stroke-width="2"/><rect x="${x}" y="${top}" width="10" height="${h}" rx="1.5" fill="${up ? '#f87171' : '#4ade80'}"/>`;
@@ -494,8 +496,8 @@ function hmDrawBuilding(d) {
       <ellipse cx="18" cy="-104" rx="15" ry="5" fill="#f2b632"/><ellipse cx="18" cy="-110" rx="15" ry="5" fill="#ffd66b"/></g>
     ${hmPlant(786, fl, 0.9)}`);
 
-  // ── 3F 分析室：白板（長條圖＋圓餅）、時鐘、書櫃、辦公桌 ──
-  t = T[3]; fl = FL(3);
+  // ── 分析室（2F）：白板（長條圖＋圓餅）、時鐘、書櫃、辦公桌 ──
+  t = T[HM_ROOM.chart]; fl = FL(HM_ROOM.chart);
   const cats = d.cats.slice(0, 4);
   const cmax = cats.length ? cats[0][1] : 1;
   const colors = ['#f79aae', '#ffb86b', '#7fd6e6', '#8fd3b0'];
@@ -544,8 +546,8 @@ function hmDrawBuilding(d) {
     ${hmPlant(90, fl, 1, true)}
     <g transform="translate(150 ${fl})"><rect x="0" y="-54" width="40" height="54" rx="6" fill="#b9cbd6"/><rect x="-4" y="-60" width="48" height="10" rx="5" fill="#9fb4c4"/><path d="M12 -44 v36 M20 -44 v36 M28 -44 v36" stroke="#9fb4c4" stroke-width="3" stroke-linecap="round"/><path d="M8 -62 l6 -10 6 8" fill="#fff" stroke="#d9c7b0" stroke-width="1.5"/></g>`);
 
-  // ── 2F 老闆辦公室：落地窗＋窗簾、結餘金框、掛畫、主管桌、皮椅、沙發、立燈、地毯 ──
-  t = T[2]; fl = FL(2);
+  // ── 老闆辦公室（頂樓 5F）：落地窗＋窗簾、結餘金框、掛畫、主管桌、皮椅、沙發、立燈、地毯 ──
+  t = T[HM_ROOM.boss]; fl = FL(HM_ROOM.boss);
   const bal = d.inc - d.exp;
   P.push(`${hmWin(110, t + 80, 200, 110, night, '#f3a9bf')}
     <ellipse cx="480" cy="${fl + 1}" rx="210" ry="13" fill="#d9a7b4"/><ellipse cx="480" cy="${fl - 1}" rx="200" ry="10" fill="#efc2cf"/><ellipse cx="480" cy="${fl - 1}" rx="170" ry="7" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="7 6" opacity=".7"/>
@@ -732,7 +734,7 @@ async function hmReact(r, edited, more) {
   const amt = Number(r.expense || r.income || r.transfer) || 0;
   const item = String(r.item || '').slice(0, 10);
   hmNext = performance.now() + 9000;          // 先暫停閒晃，讓大家專心演這一筆
-  hmShowFloor(edited ? hmActors.book.floor : r.type === '轉帳' ? 5 : 1);
+  hmShowFloor(edited ? hmActors.book.floor : r.type === '轉帳' ? HM_ROOM.xfer : HM_ROOM.hall);
   const book = hmActors.book, fl1 = hmFL(1);
   if (edited) {
     hmSay('book', `「${item}」改好了 ✏️`, 3000);
@@ -743,7 +745,7 @@ async function hmReact(r, edited, more) {
   if (r.type === '轉帳') {
     // 5F：小轉接單、蓋章、氣送管送出
     const x = hmActors.xfer;
-    hmPop(`🔁 ${hmShortMoney(amt)}`, 196, hmFL(5) - 90, 'xfer');
+    hmPop(`🔁 ${hmShortMoney(amt)}`, 196, hmFL(HM_ROOM.xfer) - 90, 'xfer');
     hmSay('xfer', `收到轉帳單：${r.account} → ${r.toAccount} ${hmShortMoney(amt)} 🔁`, 3400);
     hmJoy('xfer');
     await hmWait(3000);
@@ -781,10 +783,10 @@ async function hmReact(r, edited, more) {
   // 大筆支出：小記搭電梯上 2F 跟老闆報告
   const exps = d.recs.filter(x => x.type === '支出' && Number(x.expense) > 0);
   const avg = exps.length ? d.exp / exps.length : 0;
-  if (amt >= Math.max(3000, avg * 3) && !book.busy && !hmActors.me.busy && hmActors.me.floor === 2) {
+  if (amt >= Math.max(3000, avg * 3) && !book.busy && !hmActors.me.busy && hmActors.me.floor === HM_ROOM.boss) {
     book.busy = true; hmActors.me.busy = true;
     try {
-      hmShowFloor(2);
+      hmShowFloor(HM_ROOM.boss);
       await hmGo('book', 'meetBook');
       book.figEl.classList.remove('flip');
       hmActors.me.figEl.classList.add('flip');
