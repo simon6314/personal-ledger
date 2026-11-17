@@ -236,15 +236,18 @@ function hmRide(a, to) {
   hmLift.queue = job.catch(() => {});
   return job;
 }
-function hmGo(id, key) { const s = hmSpot(key); return hmGoTo(id, s.x, s.f); }
-async function hmGoTo(id, x, f) {
+function hmGo(id, key) { const s = hmSpot(key); return hmGoTo(id, s.x, s.f, key === hmActors[id].seat); }
+// home：要回自己座位；有新帳要處理（hurry）時，其他目的地一律取消
+async function hmGoTo(id, x, f, home = false) {
   const a = hmActors[id], s = { x, f };
+  if (a.hurry && !home) return;
   if (a.floor !== s.f) {
     a.el.classList.add('walk');
     await hmStep(a, HM_LIFT_DOOR);
     a.el.classList.remove('walk');
     hmSay(id, '等電梯中… 🛗', 1600);
     await hmRide(a, s.f);
+    if (a.hurry && !home) return;
   }
   await hmStep(a, s.x);
 }
@@ -309,8 +312,13 @@ function hmCoffeeTalk(a, b, d) {
   if (a === 'me') return pk([T('咖啡好喝嗎？', '超好喝，續命成功 😆'), T(`${HM_NAME[b]}也在休息啊`, '老闆好！喘口氣而已 😅')]);
   return pk([T('你也來裝咖啡啊 ☕', '對啊，續命一下 😆'), T('要不要加奶？🥛', '黑咖啡就好 ☕'), T('今天的咖啡豆好香 🌰', '新換的喔～'), T('飲水機的水好冰 🧊', '夏天剛好 😌'), T(`${HM_NAME[b]}，等等一起回去？`, '好，等我喝完 ☕')]);
 }
+// 可被打斷的等待：有新帳要處理（hurry）時提早結束
+function hmNap(a, ms) {
+  return new Promise(res => { const t0 = Date.now(); const iv = setInterval(() => { if (a.hurry || Date.now() - t0 >= ms) { clearInterval(iv); res(); } }, 100); });
+}
 async function hmChat(lines) {
-  for (const ln of lines) { hmSay(ln.who, ln.text, 2800); hmJoy(ln.who, 700); await hmWait(2400); }
+  for (const ln of lines) {
+    if (lines.some(l => hmActors[l.who] && hmActors[l.who].hurry)) break; hmSay(ln.who, ln.text, 2800); hmJoy(ln.who, 700); await hmWait(2400); }
 }
 const hmFace = (a, b) => { a.figEl.classList.toggle('flip', a.pos[0] > b.pos[0]); b.figEl.classList.toggle('flip', b.pos[0] > a.pos[0]); };
 
@@ -319,35 +327,34 @@ async function hmCoffee(a) {
   const d = hmData_;
   const other = Object.values(hmActors).find(x => x !== a && x.atCoffee);
   await hmGo(a.id, other && Math.abs(other.pos[0] - hmSpots('coffee')) < 40 ? 'coffee2' : 'coffee');
-  a.atCoffee = true;
-  try {
+  if (!a.hurry) try {
+    a.atCoffee = true;
     a.el.classList.add('cup');
     hmSay(a.id, pk(['裝杯咖啡 ☕', '續命時間到 ☕', '來杯拿鐵 🥛', '先喝口水 💧', '咖啡機你好 ☕']), 2400);
-    await hmWait(2400);
+    await hmNap(a, 2400);
     const mate = Object.values(hmActors).find(x => x !== a && x.floor === a.floor && (x.atCoffee || !x.busy));
     if (mate) {
       hmFace(a, mate);
       await hmChat(hmCoffeeTalk(a.id, mate.id, d));
-    } else if (Math.random() < 0.6) {
+    } else if (!a.hurry && Math.random() < 0.6) {
       await hmGo(a.id, Object.values(hmActors).some(x => x !== a && x.lounging) ? 'lounge2' : 'lounge');
       a.lounging = true;
       a.el.classList.add('rest');
       hmSay(a.id, pk(['坐一下下就好 🛋️', '大廳的沙發好軟 😌', '看一下電視 📺']), 2600);
-      await hmWait(3200);
+      await hmNap(a, 3200);
       a.el.classList.remove('rest');
       a.lounging = false;
     }
   } finally { a.atCoffee = false; }
   await hmGo(a.id, a.seat);
-  hmSay(a.id, pk(['回來工作了 💪', '咖啡喝完，繼續 ✍️', '充電完畢 🔋']), 1800);
-  await hmWait(1600);
+  if (!a.hurry) { hmSay(a.id, pk(['回來工作了 💪', '咖啡喝完，繼續 ✍️', '充電完畢 🔋']), 1800); await hmNap(a, 1600); }
   a.el.classList.remove('cup');
 }
 const hmSpots = k => HM_SPOTS[k][0];
 // 去找另一個人聊天
 async function hmVisit(a) {
   const d = hmData_;
-  const cand = Object.values(hmActors).filter(x => x !== a && !x.busy && x.id !== 'me');
+  const cand = Object.values(hmActors).filter(x => x !== a && !x.busy && !x.hurry && x.id !== 'me');
   if (!cand.length) return false;
   const b = pk(cand);
   b.busy = true;
@@ -361,7 +368,7 @@ async function hmVisit(a) {
   return true;
 }
 async function hmIdle() {
-  const free = Object.values(hmActors).filter(a => !a.busy);
+  const free = Object.values(hmActors).filter(a => !a.busy && !a.hurry);
   if (!free.length) return;
   const a = pk(free);
   const d = hmData_;
@@ -395,8 +402,8 @@ async function hmIdle() {
       hmSay('me', text, 3200);
       a.el.classList.add(where === 'sofa' ? 'rest' : 'happy');
       const mate = Object.values(hmActors).find(x => x !== a && x.floor === a.floor && !x.busy);
-      await hmWait(2400);
-      if (mate) { hmFace(a, mate); hmSay(mate.id, pk(['老闆好！👋', '老闆來巡視了 😳', '老闆要喝咖啡嗎 ☕']), 2200); await hmWait(1600); }
+      await hmNap(a, 2400);
+      if (mate) { hmFace(a, mate); hmSay(mate.id, pk(['老闆好！👋', '老闆來巡視了 😳', '老闆要喝咖啡嗎 ☕']), 2200); await hmNap(a, 1600); }
       a.el.classList.remove('rest', 'happy');
       await hmGo('me', 'me');
     } else if (a.id !== 'me' && r < 0.75) {
@@ -410,13 +417,13 @@ async function hmIdle() {
         tube: '用氣送管把轉帳單送出去 🚀', atm: '確認一下 ATM 有沒有入帳 🏧', lockers: '核對各帳戶的餘額 🗂️',
       }[where], 2800);
       a.el.classList.add('happy');
-      await hmWait(2600);
+      await hmNap(a, 2600);
       a.el.classList.remove('happy');
       await hmGo(a.id, a.seat);
     } else {
       hmSay(a.id, hmLine(a.id, d));
       a.el.classList.add('happy');
-      await hmWait(1200);
+      await hmNap(a, 1200);
       a.el.classList.remove('happy');
     }
   } finally { a.busy = false; a.figEl.classList.remove('flip'); }
@@ -876,11 +883,27 @@ function hmShowFloor(f) {
   if (y - fh / 2 >= 60 && y + fh / 2 <= window.innerHeight) return;
   window.scrollTo({ top: window.scrollY + y - window.innerHeight / 2, behavior: 'smooth' });
 }
+// 記帳時：負責的人（小記；轉帳是小轉）要先回到座位，才開始演
 async function hmReact(r, edited, more) {
+  const main = hmActors[r.type === '轉帳' && !edited ? 'xfer' : 'book'];
+  const s = hmSpot(main.seat);
+  const away = () => main.floor !== s.f || Math.abs(main.pos[0] - s.x) > 6;
+  hmNext = performance.now() + 60000;
+  main.hurry = true;                          // 正在喝咖啡、聊天的話，提早結束
+  if (away()) hmSay(main.id, pk(['有新的帳！馬上回去 🏃', '來了來了～ 🏃', '等我一下，回座位處理 🏃']), 2600);
+  for (let i = 0; main.busy && i < 120; i++) await hmWait(250);
+  main.busy = true;
+  try {
+    if (away()) await hmGo(main.id, main.seat);
+    main.figEl.classList.remove('flip');
+    main.hurry = false;
+    await hmReactAt(r, edited, more);
+  } finally { main.busy = false; main.hurry = false; hmNext = performance.now() + 4000; }
+}
+async function hmReactAt(r, edited, more) {
   const d = hmData_;
   const amt = Number(r.expense || r.income || r.transfer) || 0;
   const item = String(r.item || '').slice(0, 10);
-  hmNext = performance.now() + 9000;          // 先暫停閒晃，讓大家專心演這一筆
   hmShowFloor(edited ? hmActors.book.floor : r.type === '轉帳' ? HM_ROOM.xfer : HM_ROOM.book);
   const book = hmActors.book, fl1 = hmFL(HM_ROOM.book);
   if (edited) {
@@ -930,8 +953,8 @@ async function hmReact(r, edited, more) {
   // 大筆支出：小記搭電梯上 2F 跟老闆報告
   const exps = d.recs.filter(x => x.type === '支出' && Number(x.expense) > 0);
   const avg = exps.length ? d.exp / exps.length : 0;
-  if (amt >= Math.max(3000, avg * 3) && !book.busy && !hmActors.me.busy && hmActors.me.floor === HM_ROOM.boss) {
-    book.busy = true; hmActors.me.busy = true;
+  if (amt >= Math.max(3000, avg * 3) && !hmActors.me.busy && hmActors.me.floor === HM_ROOM.boss) {
+    hmActors.me.busy = true;
     try {
       hmShowFloor(HM_ROOM.boss);
       await hmGo('book', 'meetBook');
@@ -943,7 +966,6 @@ async function hmReact(r, edited, more) {
       await hmWait(2400);
     } finally { hmActors.me.busy = false; hmActors.me.figEl.classList.remove('flip'); }
     await hmGo('book', 'book');
-    book.busy = false;
   }
 }
 
