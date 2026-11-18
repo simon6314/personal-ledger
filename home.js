@@ -2,10 +2,10 @@
 // 依賴 app.js 的全域：monthRecords、current、months、monthData、allLoaded、accounts、balancesAsOf、
 // isStockAcc、groupSum、sum、money、esc、catText、drawChart、todayIso、sheetOrder、mergeDividendFees
 
-// ── 大樓設定（座標以 1000 × 2460 的大樓剖面為準）────────────────────
+// ── 大樓設定（座標以 1000 × 2700 的大樓剖面為準）────────────────────
 // 由上到下：屋頂、6F 老闆辦公室、5F 轉帳中心、4F 股票交易室、3F 分析室、2F 記帳室、1F 大廳／休息區、街道（樓層對應見 HM_ROOM）
-const HM_W = 1000, HM_H = 2460;
-const HM_FT = { 6: 140, 5: 500, 4: 860, 3: 1220, 2: 1580, 1: 1940 };          // 各樓層天花板 y
+const HM_W = 1000, HM_H = 2700;
+const HM_FT = { 6: 380, 5: 740, 4: 1100, 3: 1460, 2: 1820, 1: 2180 };   // 屋頂上方留 380 給天空和天氣          // 各樓層天花板 y
 const HM_FH = 360;
 const HM_FOOT = 340;                                         // 天花板到地板線的距離
 const HM_WALL_Y = 50;                                        // 牆上的東西往下移，讓出樓層牌的位置
@@ -38,6 +38,80 @@ const HM_PERSON_H = 150, HM_DOG_H = 66;          // 人和狗在大樓座標裡�
 const HM_FLOOR_NAME = Object.fromEntries(Object.entries({ boss: '老闆辦公室', xfer: '轉帳中心', stock: '股票交易室', chart: '分析室', book: '記帳室', lobby: '大廳・休息區' }).map(([k, n]) => [HM_ROOM[k], `${HM_ROOM[k]}F ${n}`]));
 const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
 const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
+
+// ── 天氣：每 6 小時換一次（依日期算出固定的亂數），點左上角的天氣可以換 ──────────
+const HM_WX = {
+  sunny:   { name: '晴天', icon: '☀️', sky: ['#bfe3ff', '#fff3e0'], dusk: ['#ffb79a', '#ffe8cc'], night: ['#1b2150', '#3b3f72'], cloud: '#fff', cloudN: '#3a4278', hill: '#b6d8c8', city: '#c9dcee', sunOut: true },
+  cloudy:  { name: '多雲', icon: '⛅', sky: ['#cfdbe8', '#eef2f6'], dusk: ['#e4c0b0', '#efe4dc'], night: ['#20264d', '#3a3f68'], cloud: '#f4f6f9', cloudN: '#454c7a', hill: '#b9cdc6', city: '#c3cfdc', sunOut: true },
+  rainbow: { name: '雨後彩虹', icon: '🌈', sky: ['#aedcff', '#f3fbff'], night: ['#1b2150', '#3b3f72'], cloud: '#fff', cloudN: '#3a4278', hill: '#a9d6bd', city: '#c4d8ea', sunOut: true, rainbow: true, wet: true },
+  rain:    { name: '下雨', icon: '🌧️', sky: ['#8e9aab', '#c3cbd5'], night: ['#151a33', '#2b3150'], cloud: '#a9b2bf', cloudN: '#3a4060', hill: '#90a99f', city: '#a7b2c0', drops: 'rain', wet: true, dim: 0.06 },
+  storm:   { name: '雷雨', icon: '⛈️', sky: ['#5d6678', '#9aa3b2'], night: ['#0f1328', '#24294a'], cloud: '#7d8696', cloudN: '#30364f', hill: '#7e958c', city: '#8c97a6', drops: 'rain', wet: true, dim: 0.12 },
+  snow:    { name: '下雪', icon: '❄️', sky: ['#d5dde8', '#f4f7fb'], night: ['#232a4f', '#454b74'], cloud: '#eef2f7', cloudN: '#4b5280', hill: '#dfe7ee', city: '#d3dbe5', drops: 'snow' },
+  typhoon: { name: '颱風', icon: '🌀', sky: ['#4f5a6e', '#8e98a8'], night: ['#0d1124', '#20253f'], cloud: '#6f7888', cloudN: '#2c3149', hill: '#74897f', city: '#828c9b', drops: 'gale', wet: true, dim: 0.14 },
+};
+const HM_WX_KEY = 'personalLedger.weather';
+const hmWxBlock = () => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth() + 1}-${n.getDate()}-${Math.floor(n.getHours() / 6)}`; };
+function hmWx() {
+  const block = hmWxBlock();
+  try { const o = JSON.parse(localStorage.getItem(HM_WX_KEY) || 'null'); if (o && o.block === block && HM_WX[o.wx]) return o.wx; } catch (e) { /* ignore */ }
+  let h = 0;
+  for (const c of 'ledger' + block) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const r = ((h * 2654435761) >>> 0) / 4294967296;
+  const m = new Date().getMonth() + 1;
+  const w = { sunny: 36, cloudy: 24, rainbow: 6, rain: 18, storm: (m >= 5 && m <= 9) ? 8 : 3, snow: (m === 12 || m <= 2) ? 8 : 0, typhoon: (m >= 6 && m <= 10) ? 6 : 0 };
+  const total = Object.values(w).reduce((a, b) => a + b, 0);
+  let acc = 0;
+  for (const k of Object.keys(w)) { acc += w[k] / total; if (r < acc) return k; }
+  return 'sunny';
+}
+// 點天氣：換到下一種（不合季節的跳過），大家會對新天氣說一句
+function hmWxNext() {
+  const m = new Date().getMonth() + 1;
+  const order = Object.keys(HM_WX).filter(k => (k !== 'snow' || m === 12 || m <= 2) && (k !== 'typhoon' || (m >= 6 && m <= 10)));
+  const next = order[(order.indexOf(hmWx()) + 1) % order.length];
+  try { localStorage.setItem(HM_WX_KEY, JSON.stringify({ block: hmWxBlock(), wx: next })); } catch (e) { /* ignore */ }
+  if (hmData_) hmDrawBuilding(hmData_);
+  const ids = Object.keys(hmActors);
+  const a = pk(ids), b = pk(ids.filter(x => x !== a));
+  hmSay(a, pk(HM_WX_LINES[next][a] || ['天氣變了耶 👀']), 3000);
+  if (b) setTimeout(() => hmSay(b, pk(HM_WX_LINES[next][b] || ['真的耶 👀']), 3000), 1400);
+}
+// 各角色看到這種天氣會說的話
+const HM_WX_LINES = {
+  sunny: { me: ['天氣真好，心情跟結餘一樣晴朗 ☀️', '這種天氣想去走走 🚶'], book: ['太陽好大，帳本別曬到 ✍️', '晴天記帳特別順 😌'], chart: ['晴天的飲料支出通常會變多 📈', '陽光充足，數據也很漂亮 ✨'], stock: ['晴天，盤面也希望一片紅 📈', '好天氣適合長期投資 🐢'], xfer: ['天氣好，氣送管也跑得特別快 🚀', '晴天轉帳，心情也晴 ☀️'], dog: ['汪汪！（想出去散步）☀️', '（在窗邊曬太陽）汪～'] },
+  cloudy: { me: ['陰陰的，適合待在辦公室對帳 ☁️', '雲好多，不知道會不會下雨 🤔'], book: ['陰天，坐在這慢慢記帳剛好 📒', '雲好厚喔 ☁️'], chart: ['今天適合看報表 📊', '天氣和數字一樣有點模糊 🌫️'], stock: ['陰天…盤面也是灰灰的 😶', '多雲時晴，跟股市一樣 ⛅'], xfer: ['雲多但轉帳照常 🔁', '天氣陰陰，櫃台也安安靜靜'], dog: ['（望著窗外的雲）🐶', '汪？（雲好像棉花糖）'] },
+  rainbow: { me: ['雨停了還有彩虹，好兆頭 🌈', '彩虹！今天一定好運 ✨'], book: ['彩虹！趕快拍照 📸', '雨後的空氣好清新 🌈'], chart: ['彩虹有七種顏色，跟我的圓餅圖一樣 📊', '好美的彩虹 🌈'], stock: ['彩虹出現，盤面也要翻紅 📈🌈', '雨過天晴，耐心等就對了 🐢'], xfer: ['彩虹像一條轉帳路線，從這頭到那頭 🌈', '雨停了，出門領錢剛好 🏧'], dog: ['汪汪！（追彩虹）🌈', '（踩水坑）汪！'] },
+  rain: { me: ['下雨了，大家記得帶傘 ☔', '雨天就專心在辦公室工作吧 🌧️'], book: ['下雨天叫外送的帳要記喔 🛵', '雨好大，發票不要淋濕 🧾'], chart: ['雨天外送支出通常會上升 🌧️📈', '雨聲很適合思考數字 🤔'], stock: ['下雨天，盤面也濕濕的 😶', '雨天不追高 ☔'], xfer: ['下雨天線上轉帳最方便 📱', '氣送管不怕下雨 🚀'], dog: ['（不想出門）🐶', '汪…（看著窗外的雨）🌧️'] },
+  storm: { me: ['打雷了！大家先存檔 ⚡', '雷雨天，好好待在大樓裡 ⛈️'], book: ['嚇！打雷了 😱', '帳本抱緊緊 📒⚡'], chart: ['閃電的時候，圖表也嚇一跳 📉', '雷聲好大…專心專心 😣'], stock: ['雷雨天…希望盤面不要也打雷 ⚡📉', '風雨來了，穩住 🐢'], xfer: ['打雷先暫停轉帳，等一下再送 ⚡', '氣送管抖了一下 😳'], dog: ['（躲到桌子底下）🐶💦', '嗚…（怕打雷）⛈️'] },
+  snow: { me: ['下雪了！太難得了 ❄️', '外面好冷，喝杯熱可可 ☕'], book: ['下雪耶！好想堆雪人 ⛄', '手好冰，記帳慢一點 🥶'], chart: ['冬天暖氣費要列進預算 📊', '雪花每一片都不一樣，跟支出一樣 ❄️'], stock: ['冷冷的天，股市也冷冷的 🥶', '冬天就是要存股取暖 🐢'], xfer: ['下雪也要準時轉帳 🔁❄️', '氣送管會不會結冰…😳'], dog: ['汪汪！（在雪地打滾）❄️', '（鼻子沾到雪）🐶'] },
+  typhoon: { me: ['颱風天，大家注意安全 🌀', '窗戶關好，今天居家辦公 🏠'], book: ['颱風天要囤糧，記得記帳 🍜', '風好大…帳本別被吹走 😱'], chart: ['颱風前的採買支出會暴增 📈', '颱風天適合整理報表 📊'], stock: ['颱風假也不休市嗎？😅', '風大雨大，股票先穩住 🐢'], xfer: ['颱風天線上轉帳就好 📱', '氣送管被風吹得咻咻叫 🌀'], dog: ['（縮成一團）🐶', '嗚汪…（風好大）🌀'] },
+};
+
+// ── 結餘的狀態：每個角色依「這個月是賺是賠」說不同的話 ──────────────────
+function hmMood(d) {
+  if (!d.inc && !d.exp) return 'empty';
+  if (!d.inc) return 'noinc';
+  const rate = (d.inc - d.exp) / d.inc;
+  if (rate < -0.2) return 'deep';
+  if (rate < 0) return 'red';
+  if (rate < 0.15) return 'tight';
+  if (rate < 0.4) return 'good';
+  return 'great';
+}
+function hmMoodLine(id, d) {
+  const bal = d.inc - d.exp, b = hmShortMoney(Math.abs(bal)), rate = d.inc ? Math.round(bal / d.inc * 100) : 0;
+  const top = d.cats[0] ? catText(d.cats[0][0]) : '支出';
+  const L = {
+    empty: { me: ['這個月還一片空白，從零開始 ✨'], book: ['帳本乾乾淨淨，等你記第一筆 📒'], chart: ['沒有數字可以分析…有點無聊 😶'], stock: ['先把股票的部分看好就好 📈'], xfer: ['這個月還沒有錢要搬 🔁'], dog: ['（趴著等開工）🐶'] },
+    noinc: { me: [`已經花了 ${hmShortMoney(d.exp)}，薪水快來吧 🙏`, '收入還沒進來，先省著點 😬'], book: ['只有支出還沒有收入，記帳有點心痛 💸', '薪水入帳記得跟我說 📒'], chart: ['收入還是 0，儲蓄率先別看 🙈', `目前都是支出，${top}最多 📊`], stock: ['發薪前先別加碼 🐢', '等收入進來再看要不要投資 📈'], xfer: ['先別亂轉帳，等薪水 🔁', '帳戶都在等入帳 🏦'], dog: ['（肚子餓）汪…', '（叼著空碗）🥣'] },
+    great: { me: [`這個月存了 ${rate}%！太強了 🎉`, `結餘 +${b}，老闆請大家喝咖啡 ☕`], book: ['這個月好會省，記帳都在笑 😆', `結餘 +${b}，寫起來好開心 ✍️`], chart: [`儲蓄率 ${rate}%，教科書等級 📈`, '這張報表可以拿去裱框了 🖼️'], stock: ['結餘這麼多，可以考慮多存點股 🐢', '多出來的錢讓它慢慢長大 🌱'], xfer: ['結餘多，可以轉一筆到儲蓄帳戶 🏦', '要不要轉去定存？🔁'], dog: ['汪汪！（開心轉圈）🎉', '（尾巴搖到停不下來）🐕'] },
+    good: { me: [`結餘 +${b}，穩穩的 👍`, `存了 ${rate}%，繼續保持 😊`], book: ['支出很節制，繼續保持 📒', `目前 +${b}，很不錯喔 ✨`], chart: [`儲蓄率 ${rate}%，健康範圍 ✅`, `${top}再省一點就更漂亮了 📊`], stock: ['有結餘就能慢慢投資 🐢', '穩定存錢最重要 💪'], xfer: ['錢都乖乖待在帳戶 🏦', '結餘可以留一點當緊急預備金 🔁'], dog: ['（滿足地趴著）🐶', '汪～（今天心情好）'] },
+    tight: { me: [`只剩 +${b}，月底要小心 😬`, '剛好打平邊緣…得踩煞車了 🚦'], book: ['結餘快見底了，記帳的手在抖 😰', `剩下 +${b}，接下來每筆都要想一下 📝`], chart: [`儲蓄率只有 ${rate}%，${top}是主因 📊`, '再多花一點就要轉負了 ⚠️'], stock: ['這個月先不要加碼股票 🐢', '先顧好現金流 💧'], xfer: ['轉帳前先確認帳戶夠不夠 🔁', '別把錢轉太散 😅'], dog: ['（把零食藏起來）🦴', '汪…（感覺到老闆的壓力）'] },
+    red: { me: [`這個月超支 ${b} 了…😱`, '花太兇了，下個月要收斂 😓'], book: [`支出超過收入 ${b}，要不要一起省？😢`, '帳本變紅字了 🟥'], chart: [`支出比收入多 ${b}，${top}是元兇 📉`, '圖表開始往下了… 📉'], stock: ['先別動股票，等現金流回正 🐢', '虧的不是股票，是錢包 😅'], xfer: ['別再轉出去了，先止血 🩹', '要不要從其他帳戶調一點過來？🔁'], dog: ['（遞上自己的零食）🦴', '汪…（安慰老闆）🐶'] },
+    deep: { me: [`赤字 ${b}…這個月要開始節衣縮食了 😵`, '緊急會議！大家一起想辦法省錢 🚨'], book: ['紅字好大一筆…我把每筆都標起來了 🖍️', '老闆，我們真的要省了 😭'], chart: [`超支 ${Math.abs(rate)}%，警報響起 🚨`, `${top}要先砍，報告整理好了 📉`], stock: ['千萬別為了回本亂買股票 ⚠️', '先保住現金，股票不要動 🐢'], xfer: ['緊急！確認一下哪個帳戶還有錢 🏦', '先別轉帳，大家冷靜 🔁'], dog: ['（把撲滿推給老闆）🐷', '嗚…（不敢吵）🐶'] },
+  };
+  return pk(L[hmMood(d)][id] || ['…']);
+}
 
 // ── Q 版小人（跟共同帳本辦公室同一套畫法）──────────────────────────
 function hmPerson(lk) {
@@ -116,6 +190,9 @@ function hmData() {
 // ── 台詞 ────────────────────────────────────────────────────
 const pk = a => a[Math.floor(Math.random() * a.length)];
 function hmLine(id, d) {
+  const roll = Math.random();
+  if (roll < 0.4) return hmMoodLine(id, d);
+  if (roll < 0.55 && HM_WX_LINES[hmWx()][id]) return pk(HM_WX_LINES[hmWx()][id]);
   if (id === 'dog') return pk(['汪！🐾', '汪汪～ 🐶', '（搖尾巴）🐕', '（嗅嗅）👃', '想散步… 🦮', '（打哈欠）😪', '有零食嗎？🦴']);
   const pct = (v, t) => (t ? Math.round(v / t * 100) : 0);
   const top = d.cats[0];
@@ -158,7 +235,7 @@ function hmReport(id, d) {
   const top = d.cats[0];
   if (id === 'book') return [
     { who: 'book', text: d.latest ? `老闆～最新一筆「${d.latest.item}」記好了 📒` : '老闆～這個月還沒記帳喔 📒' },
-    { who: 'me', text: d.latest ? '收到，謝謝小記 👍' : '好啦好啦，等等就記 😅' },
+    { who: 'me', text: d.latest ? ({ great: '收到！這個月表現很好 👍', good: '收到，謝謝小記 👍', tight: '收到…最近要省一點了 😬', red: '收到…又多一筆了嗎 😓', deep: '收到…先別再花了 😵' }[hmMood(d)] || '收到，謝謝小記 👍') : '好啦好啦，等等就記 😅' },
   ];
   if (id === 'chart') return [
     { who: 'chart', text: top ? `報告！這個月 ${catText(top[0])} 花最多，${hmShortMoney(top[1])} 📊` : '報告！這個月還沒有支出 📊' },
@@ -470,7 +547,7 @@ async function hmIdle() {
       const text = {
         board: d.cats[0] ? `原來${catText(d.cats[0][0])}花最多…` : '白板好乾淨 ✨',
         monitor: d.stockBal != null ? `股票帳戶 ${hmShortMoney(d.stockBal)}…穩住 📈` : '看一下盤 📈',
-        window: hmNight() ? '夜景好美 🌃' : '今天天氣不錯 🌤️', sofa: '休息一下～ 🛋️', guide: '大樓越來越熱鬧了 🏢',
+        window: pk(HM_WX_LINES[hmWx()].me), sofa: '休息一下～ 🛋️', guide: '大樓越來越熱鬧了 🏢',
         atm: d.xfers.length ? `這個月轉了 ${hmShortMoney(d.xferTotal)}，錢有到位 🏧` : '來 ATM 看看餘額 🏧', notice: d.latest ? `最新一筆是「${d.latest.item}」` : '公告欄空空的 📌', vault: d.inc - d.exp >= 0 ? '小豬撲滿又變胖了 🐷' : '撲滿要節食了 🐷',
       }[where];
       hmSay('me', text, 3200);
@@ -567,20 +644,37 @@ function hmDrawBuilding(d) {
   const T = HM_FT, FL = hmFL;
   const TOP = T[6], BOT = T[1] + HM_FH;
   const P = [];
-  const sky = night ? ['#1b2150', '#3b3f72'] : now.getHours() >= 16 ? ['#ffb79a', '#ffe8cc'] : ['#bfe3ff', '#fff3e0'];
-  const cloud = (x, y, k) => `<g fill="#fff" opacity=".95"><ellipse cx="${x}" cy="${y}" rx="${70 * k}" ry="${22 * k}"/><ellipse cx="${x - 40 * k}" cy="${y - 14 * k}" rx="${40 * k}" ry="${26 * k}"/><ellipse cx="${x + 30 * k}" cy="${y - 10 * k}" rx="${34 * k}" ry="${22 * k}"/></g>`;
+  const wx = hmWx(), W = HM_WX[wx];
+  const dusk = !night && now.getHours() >= 16;
+  const sky = night ? W.night : dusk && W.dusk ? W.dusk : W.sky;
+  const cc = night ? W.cloudN : W.cloud;      // 雲的顏色
+  const cloud = (x, y, k, c = cc, cls = '') => `<g class="hb-cloud ${cls}" fill="${c}" opacity=".95"><ellipse cx="${x}" cy="${y}" rx="${70 * k}" ry="${22 * k}"/><ellipse cx="${x - 40 * k}" cy="${y - 14 * k}" rx="${40 * k}" ry="${26 * k}"/><ellipse cx="${x + 30 * k}" cy="${y - 10 * k}" rx="${34 * k}" ry="${22 * k}"/></g>`;
   P.push(`<defs><linearGradient id="hbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
     <linearGradient id="hbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7d77a"/><stop offset=".5" stop-color="#e0a82e"/><stop offset="1" stop-color="#f2c75c"/></linearGradient>
     <linearGradient id="hbGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3f3fb"/><stop offset="1" stop-color="#b9dcec"/></linearGradient>
     <clipPath id="hbTick"><rect x="50" y="${T[HM_ROOM.stock] + HM_WALL_Y + 14}" width="762" height="40" rx="6"/></clipPath></defs>
     <rect width="${HM_W}" height="${HM_H}" fill="url(#hbSky)"/>`);
-  // 太陽／月亮、遠方的城市、雲、鳥
-  P.push(night
-    ? `<circle cx="780" cy="52" r="28" fill="#fff6d6"/><circle cx="792" cy="43" r="24" fill="#1b2150"/>${[[300, 30], [420, 64], [700, 24], [860, 58], [560, 46], [240, 80], [950, 30]].map(([x, y]) => `<circle class="hb-twinkle" cx="${x}" cy="${y}" r="2.6" fill="#fff6d6"/>`).join('')}`
-    : `<circle cx="110" cy="58" r="52" fill="#ffd66b" opacity=".25"/><circle cx="110" cy="58" r="36" fill="${now.getHours() >= 16 ? '#ff9a6b' : '#ffd66b'}"/>${cloud(700, 62, 0.9)}${cloud(380, 44, 0.6)}
-      <g fill="none" stroke="#5b6475" stroke-width="2.4" stroke-linecap="round"><path d="M520 90 q8 -8 16 0 q8 -8 16 0"/><path d="M570 70 q6 -6 12 0 q6 -6 12 0"/></g>`);
-  P.push(`<g fill="${night ? '#2c3363' : '#c9dcee'}" opacity=".9"><rect x="0" y="${TOP - 90}" width="70" height="90"/><rect x="80" y="${TOP - 60}" width="60" height="60"/><rect x="890" y="${TOP - 110}" width="60" height="110"/><rect x="955" y="${TOP - 70}" width="45" height="70"/></g>
-    ${night ? [[20, 70], [100, 40], [905, 90], [930, 60], [965, 40]].map(([x, y]) => `<rect x="${x}" y="${TOP - y}" width="9" height="11" fill="#ffd66b" opacity=".8"/>`).join('') : ''}`);
+  // 太陽／月亮（陰天以上就被雲遮住）、星星、彩虹
+  if (night) {
+    if (W.sunOut) P.push(`<circle cx="780" cy="110" r="34" fill="#fff6d6"/><circle cx="794" cy="99" r="29" fill="${sky[0]}"/>${[[300, 60], [420, 140], [700, 50], [860, 180], [560, 90], [240, 200], [950, 70], [120, 120], [640, 230], [380, 260]].map(([x, y]) => `<circle class="hb-twinkle" cx="${x}" cy="${y}" r="2.8" fill="#fff6d6"/>`).join('')}`);
+  } else if (W.sunOut) {
+    P.push(`<g class="hb-sun"><circle cx="140" cy="120" r="74" fill="#ffd66b" opacity=".22"/><circle cx="140" cy="120" r="46" fill="${dusk ? '#ff9a6b' : '#ffd66b'}"/>
+      ${[...Array(10)].map((_, i) => `<path d="M140 120 m0 -58 v-16" stroke="${dusk ? '#ffb38a' : '#ffd66b'}" stroke-width="6" stroke-linecap="round" transform="rotate(${i * 36} 140 120)"/>`).join('')}</g>`);
+    if (wx === 'cloudy') P.push(cloud(190, 150, 1.1));
+  }
+  if (W.rainbow && !night) P.push(`<g opacity=".55" fill="none" stroke-width="14">${['#f87171', '#fbbf24', '#fde047', '#86efac', '#93c5fd', '#c4b5fd'].map((c, i) => `<path d="M520 ${TOP - 40} A300 260 0 0 1 1120 ${TOP - 40}" stroke="${c}" transform="translate(${-i * 14} ${i * 12}) scale(1 1)"/>`).join('')}</g>`);
+  // 遠山、雲
+  P.push(`<path d="M0 ${TOP - 70} Q120 ${TOP - 190} 260 ${TOP - 110} T520 ${TOP - 150} T800 ${TOP - 100} T1000 ${TOP - 170} V${TOP} H0 Z" fill="${night ? '#29305e' : W.hill}" opacity=".7"/>`);
+  const clouds = { sunny: [[640, 90, 0.9], [420, 200, 0.55]], rainbow: [[300, 90, 0.8], [900, 110, 0.7], [520, 220, 0.6]], cloudy: [[420, 90, 1.1], [760, 150, 1], [560, 230, 0.8], [90, 240, 0.7]], rain: [[120, 80, 1.3], [420, 60, 1.4], [720, 90, 1.3], [940, 70, 1.1], [280, 170, 1.1], [600, 180, 1.2], [860, 200, 1]],
+    storm: [[120, 70, 1.4], [420, 50, 1.5], [720, 80, 1.4], [940, 60, 1.2], [280, 160, 1.2], [600, 170, 1.3], [860, 190, 1.1]], snow: [[200, 80, 1.1], [520, 70, 1.2], [840, 90, 1.1], [360, 180, 0.9], [700, 190, 0.9]],
+    typhoon: [[100, 60, 1.5], [380, 40, 1.6], [680, 70, 1.5], [940, 50, 1.3], [240, 160, 1.3], [560, 150, 1.4], [840, 180, 1.2]] }[wx];
+  P.push(clouds.map(([x, y, k], i) => cloud(x, y, k, cc, i % 2 ? 'b' : '')).join(''));
+  if (wx === 'sunny' && !night) P.push(`<g fill="none" stroke="#5b6475" stroke-width="2.6" stroke-linecap="round" class="hb-birds"><path d="M520 150 q9 -9 18 0 q9 -9 18 0"/><path d="M580 125 q7 -7 14 0 q7 -7 14 0"/><path d="M470 175 q6 -6 12 0 q6 -6 12 0"/></g>`);
+  if (wx === 'storm' || wx === 'typhoon') P.push(`<path class="hb-bolt" d="M640 150 l-34 70 h30 l-26 72 l66 -96 h-32 l28 -46 Z" fill="#fde047" stroke="#facc15" stroke-width="3"/>`);
+  // 遠方的城市
+  P.push(`<g fill="${night ? '#2c3363' : W.city}" opacity=".95"><rect x="0" y="${TOP - 150}" width="70" height="150"/><rect x="80" y="${TOP - 100}" width="60" height="100"/><rect x="150" y="${TOP - 70}" width="50" height="70"/><rect x="830" y="${TOP - 90}" width="50" height="90"/><rect x="890" y="${TOP - 180}" width="60" height="180"/><rect x="955" y="${TOP - 120}" width="45" height="120"/><path d="M905 ${TOP - 180} l15 -26 l15 26 Z"/></g>
+    ${night ? [[20, 130], [42, 100], [100, 80], [905, 150], [930, 110], [965, 90], [850, 60], [170, 50]].map(([x, y]) => `<rect x="${x}" y="${TOP - y}" width="9" height="11" fill="#ffd66b" opacity=".8"/>`).join('') : ''}
+    ${wx === 'snow' ? `<g fill="#fff">${[[0, 150, 70], [80, 100, 60], [150, 70, 50], [830, 90, 50], [890, 180, 60], [955, 120, 45]].map(([x, y, w]) => `<rect x="${x}" y="${TOP - y - 6}" width="${w}" height="10" rx="5"/>`).join('')}</g>` : ''}`);
   // 屋頂：屋簷、招牌（含燈泡）、天線、太陽能板、水塔
   P.push(`<rect x="20" y="${TOP - 34}" width="960" height="40" rx="10" fill="#b98a5c"/><rect x="20" y="${TOP - 34}" width="960" height="8" rx="4" fill="#d9b48a"/>
     <g transform="translate(60 ${TOP - 34})"><rect x="30" y="-46" width="10" height="46" fill="#9aa8b6"/><rect x="110" y="-46" width="10" height="46" fill="#9aa8b6"/><path d="M0 -44 L28 -84 H152 L124 -44 Z" fill="#3f5f94"/><path d="M41 -84 L13 -44 M72 -84 L44 -44 M103 -84 L75 -44 M134 -84 L106 -44 M14 -64 H138" stroke="#9fc0ea" stroke-width="2"/><path d="M30 -82 L22 -70" stroke="#fff" stroke-width="3" opacity=".5"/></g>
@@ -590,7 +684,8 @@ function hmDrawBuilding(d) {
     <rect x="312" y="${TOP - 94}" width="436" height="44" rx="10" fill="none" stroke="#c9eeee" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
     <text x="530" y="${TOP - 61}" font-size="40" font-weight="800" text-anchor="middle" fill="#0a7c80" letter-spacing="2">📒 我的帳本大樓</text>
     <path d="M360 ${TOP - 40} v6 M700 ${TOP - 40} v6" stroke="#9aa8b6" stroke-width="6"/>
-    ${night ? `<ellipse cx="530" cy="${TOP - 72}" rx="250" ry="44" fill="#bff3f3" opacity=".18"/>` : ''}`);
+    ${night ? `<ellipse cx="530" cy="${TOP - 72}" rx="250" ry="44" fill="#bff3f3" opacity=".18"/>` : ''}
+    ${wx === 'snow' ? `<path d="M20 ${TOP - 30} q20 -14 40 -2 q30 -16 60 0 q40 -14 80 0 q50 -16 100 0 q60 -12 120 0 q60 -16 120 0 q60 -14 120 0 q60 -14 120 0 q60 -12 100 0 q40 -10 80 2 v8 H20 Z" fill="#fff"/>` : ''}`);
   // 外牆
   P.push(`<rect x="20" y="${TOP}" width="960" height="${BOT - TOP}" fill="#e6d3bd"/>`);
   // 各樓層：牆、腰板、地板、樓板、天花燈、樓層牌
@@ -872,16 +967,16 @@ function hmDrawBuilding(d) {
 
   // ── 戶外：人行道、馬路、草地、樹、路燈、長椅、信箱、花 ──
   const g0 = BOT, H = HM_H;
-  const tree = (x, k) => `<g class="hb-tree" style="transform-origin:${x}px ${H}px"><rect x="${x - 9 * k}" y="${H - 110 * k}" width="${18 * k}" height="${110 * k}" rx="6" fill="#a9754f"/>
+  const tree = (x, k) => `<g class="hb-tree${wx === 'typhoon' ? ' gale' : ''}" style="transform-origin:${x}px ${H}px"><rect x="${x - 9 * k}" y="${H - 110 * k}" width="${18 * k}" height="${110 * k}" rx="6" fill="#a9754f"/>
     <circle cx="${x}" cy="${H - 130 * k}" r="${52 * k}" fill="${night ? '#3f6b4a' : '#7cc49a'}"/><circle cx="${x - 36 * k}" cy="${H - 100 * k}" r="${36 * k}" fill="${night ? '#467855' : '#8fd3b0'}"/>
     <circle cx="${x + 38 * k}" cy="${H - 104 * k}" r="${34 * k}" fill="${night ? '#467855' : '#8fd3b0'}"/><circle cx="${x - 14 * k}" cy="${H - 150 * k}" r="${10 * k}" fill="#fff" opacity=".25"/></g>`;
   P.push(`<rect x="0" y="${g0}" width="1000" height="34" fill="#d9c7b0"/>${[...Array(10)].map((_, i) => `<path d="M${i * 100} ${g0} v34" stroke="#c9b49b" stroke-width="2"/>`).join('')}
     <rect x="52" y="${g0}" width="132" height="10" fill="#efe3d3"/>
     <rect x="0" y="${g0 + 34}" width="1000" height="7" fill="#9aa3ad"/>
-    <rect x="0" y="${g0 + 41}" width="1000" height="66" fill="${night ? '#3e434d' : '#7b828c'}"/>
+    <rect x="0" y="${g0 + 41}" width="1000" height="66" fill="${night ? '#3e434d' : W.wet ? '#5f6670' : '#7b828c'}"/>${W.wet ? `<g fill="#9fb4c8" opacity=".55">${[90, 300, 520, 760, 930].map((x, i) => `<ellipse cx="${x}" cy="${g0 + 60 + (i % 2) * 28}" rx="${36 + i * 4}" ry="5"/>`).join('')}</g>` : ''}
     <path d="M0 ${g0 + 74} H1000" stroke="#ffd66b" stroke-width="5" stroke-dasharray="40 30"/>
     <rect x="0" y="${g0 + 107}" width="1000" height="7" fill="#9aa3ad"/>
-    <rect x="0" y="${g0 + 114}" width="1000" height="${H - g0 - 114}" fill="${night ? '#5f8a5c' : '#a8d8a0'}"/>
+    <rect x="0" y="${g0 + 114}" width="1000" height="${H - g0 - 114}" fill="${wx === 'snow' ? '#f3f6fa' : night ? '#5f8a5c' : '#a8d8a0'}"/>
     <g class="hb-car"><g transform="translate(0 ${g0 + 96})"><rect x="-70" y="-30" width="96" height="24" rx="10" fill="#f79aae"/><path d="M-56 -30 l12 -16 h42 l12 16 Z" fill="#f79aae"/><path d="M-48 -32 l8 -11 h14 v11 Z M-22 -32 v-11 h12 l8 11 Z" fill="#dff2fd"/>
       <circle cx="-48" cy="-6" r="9" fill="#3e4a5a"/><circle cx="6" cy="-6" r="9" fill="#3e4a5a"/><circle cx="-48" cy="-6" r="3.5" fill="#c5d0db"/><circle cx="6" cy="-6" r="3.5" fill="#c5d0db"/><rect x="22" y="-26" width="6" height="6" rx="2" fill="#ffd66b"/></g></g>
     ${tree(70, 0.55)}${tree(940, 0.6)}
@@ -890,7 +985,39 @@ function hmDrawBuilding(d) {
     ${[200, 330, 600, 640, 820].map((x, i) => `<path d="M${x} ${H - 8} v-16" stroke="#5f9e7a" stroke-width="3"/><circle cx="${x}" cy="${H - 28}" r="7" fill="${['#f7a8c0', '#ffd66b', '#c9a0e6', '#ef7d7d', '#9fd0f0'][i]}"/><circle cx="${x}" cy="${H - 28}" r="2.6" fill="#fff6c9"/>`).join('')}`);
   // 夜晚：整棟樓的燈光
   if (night) P.push(`<rect x="0" y="0" width="${HM_W}" height="${HM_H}" fill="#1b2150" opacity=".08"/>`);
+  if (W.dim && !night) P.push(`<rect x="0" y="0" width="${HM_W}" height="${HM_H}" fill="#3b4a6b" opacity="${W.dim}"/>`);
   $('hmScene').querySelector('.hm-room').innerHTML = `<svg viewBox="0 0 ${HM_W} ${HM_H}" preserveAspectRatio="none" aria-hidden="true">${P.join('')}</svg>`;
+  hmWxLayer(wx, TOP, BOT);
+}
+// 雨、雪、颱風的粒子只下在天空和街道（不下進室內）；雷雨會閃電
+function hmWxLayer(wx, TOP, BOT) {
+  const box = $('hmScene');
+  box.querySelectorAll('.hm-wx').forEach(e => e.remove());
+  const W = HM_WX[wx];
+  const chip = document.createElement('button');
+  chip.type = 'button'; chip.className = 'hm-wx hm-wx-chip';
+  chip.textContent = `${W.icon} ${W.name}`;
+  chip.title = '點一下換天氣';
+  chip.addEventListener('click', e => { e.stopPropagation(); hmWxNext(); });
+  box.appendChild(chip);
+  if (!W.drops) return;
+  const zones = [[0, TOP - 30], [BOT, HM_H]];
+  zones.forEach(([y0, y1]) => {
+    const z = document.createElement('div');
+    z.className = `hm-wx hm-wx-zone ${W.drops}`;
+    z.style.top = (y0 / HM_H * 100) + '%';
+    z.style.height = ((y1 - y0) / HM_H * 100) + '%';
+    const n = Math.round((W.drops === 'snow' ? 26 : 46) * (y1 - y0) / 380);
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('i');
+      d.style.left = (Math.random() * 104 - 2).toFixed(1) + '%';
+      d.style.animationDelay = (-Math.random() * 3).toFixed(2) + 's';
+      d.style.animationDuration = (W.drops === 'snow' ? 3 + Math.random() * 3 : W.drops === 'gale' ? 0.45 + Math.random() * 0.3 : 0.6 + Math.random() * 0.4).toFixed(2) + 's';
+      z.appendChild(d);
+    }
+    box.appendChild(z);
+  });
+  if (wx === 'storm' || wx === 'typhoon') { const f = document.createElement('div'); f.className = 'hm-wx hm-wx-flash'; f.style.height = (TOP / HM_H * 100) + '%'; box.appendChild(f); }
 }
 function hmBuildScene() {
   const box = $('hmScene');

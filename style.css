@@ -476,6 +476,29 @@ main { position: relative; z-index: 1; }
 .hm-actor.dog .hm-tag { font-size: clamp(9px, 2.2vw, 12px); }
 .hm-actor.img.cup .hm-fig::after { right: -30%; top: 50%; }
 .hm-actor.in-lift .hm-tag { display: none; }   /* 多人搭電梯時名牌會疊在一起，先藏起來 */
+.hm-wx-chip { position: absolute; left: 2.5%; top: 1.2%; z-index: 7000; border: 0; border-radius: 999px; padding: .3em .8em; font: inherit; font-weight: 800; font-size: clamp(12px, 3vw, 15px); color: #3b4a6b; background: rgba(255, 255, 255, .85); box-shadow: 0 2px 6px rgba(40, 50, 80, .18); cursor: pointer; }
+.hm-wx-chip:active { transform: scale(.95); }
+.hm-wx-zone { position: absolute; left: 0; right: 0; z-index: 50; overflow: hidden; pointer-events: none; }
+.hm-wx-zone i { position: absolute; top: -10%; display: block; }
+.hm-wx-zone.rain i { width: 1.5px; height: 4.5%; background: linear-gradient(transparent, rgba(220, 235, 255, .9)); animation: hmRain .8s linear infinite; }
+.hm-wx-zone.gale i { width: 1.5px; height: 6%; background: linear-gradient(transparent, rgba(220, 235, 255, .9)); animation: hmGale .6s linear infinite; }
+.hm-wx-zone.snow i { width: .9%; aspect-ratio: 1; border-radius: 50%; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, .9); animation: hmSnow 4s linear infinite; }
+@keyframes hmRain { to { transform: translateY(1200%); } }
+@keyframes hmGale { from { transform: translate(0, 0) rotate(25deg); } to { transform: translate(-260%, 900%) rotate(25deg); } }
+@keyframes hmSnow { 0% { transform: translate(0, 0); } 50% { transform: translate(120%, 700%); } 100% { transform: translate(-60%, 1400%); } }
+.hm-wx-flash { position: absolute; left: 0; right: 0; top: 0; z-index: 51; pointer-events: none; background: #fff; opacity: 0; animation: hmFlash 7s infinite; }
+@keyframes hmFlash { 0%, 88%, 92%, 100% { opacity: 0; } 89% { opacity: .55; } 90% { opacity: .1; } 91% { opacity: .45; } }
+.hb-bolt { opacity: 0; animation: hmBolt 7s infinite; }
+@keyframes hmBolt { 0%, 88%, 93%, 100% { opacity: 0; } 89%, 91% { opacity: 1; } }
+.hb-cloud { animation: hbDrift 26s ease-in-out infinite alternate; }
+.hb-cloud.b { animation-duration: 34s; animation-direction: alternate-reverse; }
+@keyframes hbDrift { from { transform: translateX(-30px); } to { transform: translateX(30px); } }
+.hb-sun { transform-box: fill-box; transform-origin: center; animation: hbSpin 40s linear infinite; }
+@keyframes hbSpin { to { transform: rotate(360deg); } }
+.hb-birds { animation: hbDrift 9s ease-in-out infinite alternate; }
+.hb-tree.gale { animation: hbGaleTree 1.1s ease-in-out infinite alternate; }
+@keyframes hbGaleTree { from { transform: rotate(-3deg); } to { transform: rotate(-9deg); } }
+@media (prefers-reduced-motion: reduce) { .hm-wx-zone i, .hm-wx-flash, .hb-bolt, .hb-cloud, .hb-sun, .hb-birds { animation: none; } }
 .hm-hint { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
 .hm-vs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; display: grid; gap: 8px; }
 .hm-vs-row { display: grid; grid-template-columns: 4.5em 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
