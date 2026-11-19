@@ -37,7 +37,7 @@ const HM_IMG = { me: 214 / 512, book: 237 / 512, chart: 256 / 512, stock: 228 / 
 const HM_PERSON_H = 150, HM_DOG_H = 66;          // 人和狗在大樓座標裡的高度
 const HM_FLOOR_NAME = Object.fromEntries(Object.entries({ boss: '老闆辦公室', xfer: '轉帳中心', stock: '股票交易室', chart: '分析室', book: '記帳室', lobby: '大廳・休息區' }).map(([k, n]) => [HM_ROOM[k], `${HM_ROOM[k]}F ${n}`]));
 const hmSpot = k => { const s = HM_SPOTS[k]; return { x: s[0], f: s[1] }; };
-const hmNight = () => { const h = new Date().getHours(); return h >= 19 || h < 6; };
+const hmNight = () => { const h = new Date().getHours(); return h >= 23 || h < 6; };
 
 // ── 天氣：每 6 小時換一次（依日期算出固定的亂數），點左上角的天氣可以換 ──────────
 const HM_WX = {
@@ -516,7 +516,7 @@ async function hmDogIdle(a) {
 }
 // 天氣的台詞：目前天氣下這個角色會說的話（沒有就回傳 null）
 const hmWxSay = id => { const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null; };
-// 晚上（19:00–06:00）：大家回自己的位子趴著休息，小白在窩裡打呼
+// 晚上（23:00–06:00）：大家回自己的位子趴著休息，小白在窩裡打呼
 async function hmNightRest(a) {
   if (a.pet) {
     await hmGo(a.id, 'dognap');
