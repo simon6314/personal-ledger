@@ -514,6 +514,25 @@ async function hmDogIdle(a) {
   }
   await hmGo('dog', 'dogbed');
 }
+// 天氣的台詞：目前天氣下這個角色會說的話（沒有就回傳 null）
+const hmWxSay = id => { const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null; };
+// 晚上（19:00–06:00）：大家回自己的位子趴著休息，小白在窩裡打呼
+async function hmNightRest(a) {
+  if (a.pet) {
+    await hmGo(a.id, 'dognap');
+    a.el.classList.add('rest');
+    hmSay(a.id, pk(['Zzz… 💤', '（打呼）😴']), 2600);
+    await hmNap(a, 9000 + Math.random() * 6000);
+    a.el.classList.remove('rest');
+    return;
+  }
+  const s = hmSpot(a.seat);
+  if (a.floor !== s.f || Math.abs(a.pos[0] - s.x) > 2) await hmGo(a.id, a.seat);
+  a.el.classList.add('rest');
+  hmSay(a.id, pk(['晚安，明天見 🌙', 'Zzz… 💤', '（打呼）😴', '今天辛苦了… 😪']), 2600);
+  await hmNap(a, 7000 + Math.random() * 5000);
+  a.el.classList.remove('rest');
+}
 async function hmIdle() {
   const free = Object.values(hmActors).filter(a => !a.busy && !a.hurry);
   if (!free.length) return;
@@ -522,6 +541,10 @@ async function hmIdle() {
   const r = Math.random();
   a.busy = true;
   try {
+    if (hmNight()) { await hmNightRest(a); return; }
+    // 白天：約兩成的機會，依目前天氣跳出對應的對話框
+    const wxLine = Math.random() < 0.2 ? hmWxSay(a.id) : null;
+    if (wxLine) { hmSay(a.id, wxLine, 2800); a.el.classList.add('happy'); await hmNap(a, 1800); a.el.classList.remove('happy'); return; }
     if (a.pet) {
       await hmDogIdle(a);
     } else if (r < 0.22) {
@@ -572,7 +595,7 @@ async function hmIdle() {
       a.el.classList.remove('happy');
       await hmGo(a.id, a.seat);
     } else {
-      hmSay(a.id, hmLine(a.id, d));
+      hmSay(a.id, (Math.random() < 0.5 && hmWxSay(a.id)) || hmLine(a.id, d));
       a.el.classList.add('happy');
       await hmNap(a, 1200);
       a.el.classList.remove('happy');
