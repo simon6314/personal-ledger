@@ -693,6 +693,20 @@ function hmMug(x, fl, c = '#fff') {
   return `<path d="M${x - 9} ${fl - 18} h18 l-2 18 h-14 Z" fill="${c}" stroke="#d9c7b0" stroke-width="2"/><path d="M${x + 9} ${fl - 14} q8 0 7 6 q-1 5 -9 4" fill="none" stroke="#d9c7b0" stroke-width="2.2"/>
     <path class="hb-steam" d="M${x - 3} ${fl - 22} q-4 -6 0 -12 M${x + 4} ${fl - 22} q4 -6 0 -12" fill="none" stroke="#c5d2de" stroke-width="2.2" stroke-linecap="round"/>`;
 }
+// 兩個顏色之間的混色（#rrggbb）
+function hmLerp(c1, c2, t) {
+  const a = [1, 3, 5].map(i => parseInt(c1.substr(i, 2), 16)), b = [1, 3, 5].map(i => parseInt(c2.substr(i, 2), 16));
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+// 傍晚天色：17 點開始由白天慢慢變成傍晚，再慢慢變暗，22 點接近夜色（23 點才是夜）
+function hmSkyAt(W, now) {
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (h < 17) return null;
+  const dusk = W.dusk || W.sky;
+  const k = Math.min(1, (h - 17) / 5);            // 17 點為 0，22 點為 1
+  const toDusk = Math.min(1, k * 2), toNight = Math.max(0, (k - 0.5) * 2) * 0.85;
+  return [0, 1].map(i => hmLerp(hmLerp(W.sky[i], dusk[i], toDusk), W.night[i], toNight));
+}
 function hmDrawBuilding(d) {
   const night = hmNight();
   const now = new Date();
@@ -700,8 +714,9 @@ function hmDrawBuilding(d) {
   const TOP = T[6], BOT = T[1] + HM_FH;
   const P = [];
   const wx = hmWx(), W = HM_WX[wx];
-  const dusk = !night && now.getHours() >= 17;
-  const sky = night ? W.night : dusk && W.dusk ? W.dusk : W.sky;
+  const skyAt = !night ? hmSkyAt(W, now) : null;
+  const dusk = !!skyAt && now.getHours() >= 17;   // 傍晚：太陽跟著變成橘色
+  const sky = night ? W.night : (skyAt || W.sky);
   const cc = night ? W.cloudN : W.cloud;      // 雲的顏色
   const cloud = (x, y, k, c = cc, cls = '') => `<g class="hb-cloud ${cls}" fill="${c}" opacity=".95"><ellipse cx="${x}" cy="${y}" rx="${70 * k}" ry="${22 * k}"/><ellipse cx="${x - 40 * k}" cy="${y - 14 * k}" rx="${40 * k}" ry="${26 * k}"/><ellipse cx="${x + 30 * k}" cy="${y - 10 * k}" rx="${34 * k}" ry="${22 * k}"/></g>`;
   P.push(`<defs><linearGradient id="hbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
