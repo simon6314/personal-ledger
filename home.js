@@ -515,7 +515,24 @@ async function hmDogIdle(a) {
   await hmGo('dog', 'dogbed');
 }
 // 天氣的台詞：目前天氣下這個角色會說的話（沒有就回傳 null）
-const hmWxSay = id => { const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null; };
+// 下雪時會寒冷：角色發抖，閒聊時有一半機會說寒冷的台詞
+const hmCold = () => hmWx() === 'snow';
+const HM_COLD_LINES = {
+  me: ['好冷…大家把外套穿上 🧥', '暖氣開了沒？ 🥶'],
+  book: ['手好冰，帳本都快拿不住了 🥶', '冷到打哆嗦，記快一點 📒'],
+  chart: ['圖表都凍住了 🧊', '這種天氣喝杯熱可可最好 ☕'],
+  stock: ['股市冷，我更冷 🥶', '穿厚一點，別感冒 🧣'],
+  xfer: ['轉帳也要保暖 🧤', '好冷喔，快回暖氣旁 🔥'],
+  dog: ['汪…（縮成一團）🥶', '（鑽進毯子裡）🐾'],
+};
+function hmApplyCold() {
+  const box = $('hmScene');
+  if (box) box.querySelectorAll('.hm-actor').forEach(el => el.classList.toggle('cold', hmCold()));
+}
+const hmWxSay = id => {
+  if (hmCold() && HM_COLD_LINES[id] && Math.random() < 0.5) return pk(HM_COLD_LINES[id]);
+  const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null;
+};
 // 晚上（23:00–06:00）：大家回自己的位子趴著休息，小白在窩裡打呼
 async function hmNightRest(a) {
   if (a.pet) {
@@ -1286,6 +1303,7 @@ function renderHome() {
   if (!hmBuilt) hmBuildScene();
   const d = hmData_ = hmData();
   hmDrawBuilding(d);
+  hmApplyCold();
   if (!hmRaf) hmRaf = requestAnimationFrame(hmTick);
   if (hmPending.length) setTimeout(hmPlayPending, 800);
 

@@ -557,3 +557,7 @@ main { position: relative; z-index: 1; }
 .hm-bub.edge-r.show { transform: scale(1); }
 .hm-bub.edge-l { left: -10%; transform: scale(.6); transform-origin: left bottom; }
 .hm-bub.edge-l.show { transform: scale(1); }
+
+/* 下雪寒冷：角色發抖 */
+@keyframes hmShiver { from { transform: translateX(-1.5px); } to { transform: translateX(1.5px); } }
+.hm-actor.cold .hm-fig > * { animation: hmShiver .14s linear infinite alternate; }
