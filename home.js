@@ -49,11 +49,80 @@ const HM_WX = {
   snow:    { name: '下雪', icon: '❄️', sky: ['#d5dde8', '#f4f7fb'], night: ['#232a4f', '#454b74'], cloud: '#eef2f7', cloudN: '#4b5280', hill: '#dfe7ee', city: '#d3dbe5', drops: 'snow' },
   typhoon: { name: '颱風', icon: '🌀', sky: ['#4f5a6e', '#8e98a8'], night: ['#0d1124', '#20253f'], cloud: '#6f7888', cloudN: '#2c3149', hill: '#74897f', city: '#828c9b', drops: 'gale', wet: true, dim: 0.14 },
 };
+// ---- 實際天氣：透過天氣 Worker（中央氣象署自動站）取得目前位置附近測站的現況 ----
+const HM_PROXY = 'https://wearther-proxy.simon6314.workers.dev';
+const HM_LIVE_KEY = 'personalLedger.liveWx';
+const HM_COLD_C = 15;                       // 15 度以下算寒冷
+const HM_LIVE = { at: 0, temp: null, wx: null };
+try { Object.assign(HM_LIVE, JSON.parse(localStorage.getItem(HM_LIVE_KEY) || 'null') || {}); } catch (e) { /* ignore */ }
+const hmLiveFresh = () => !!HM_LIVE.at && Date.now() - HM_LIVE.at < 2 * 3600e3;   // 超過兩小時就不用了
+const hmCold = () => hmLiveFresh() && HM_LIVE.temp != null && HM_LIVE.temp <= HM_COLD_C;
+const HM_COLD_LINES = {
+  me: ['好冷…大家把外套穿上 🧥', '暖氣開了沒？ 🥶'],
+  book: ['手好冰，帳本都快拿不住了 🥶', '冷到打哆嗦，記快一點 📒'],
+  chart: ['圖表都凍住了 🧊', '這種天氣喝杯熱可可最好 ☕'],
+  stock: ['股市冷，我更冷 🥶', '穿厚一點，別感冒 🧣'],
+  xfer: ['轉帳也要保暖 🧤', '好冷喔，快回暖氣旁 🔥'],
+  dog: ['汪…（縮成一團）🥶', '（鑽進毯子裡）🐾'],
+};
+// 中央氣象署的天氣文字對應到大樓的天氣
+function hmWxFromCwa(text) {
+  const t = String(text || '');
+  if (/颱風/.test(t)) return 'typhoon';
+  if (/雷/.test(t)) return 'storm';
+  if (/雪/.test(t)) return 'snow';
+  if (/雨/.test(t)) return 'rain';
+  if (/多雲|陰/.test(t)) return 'cloudy';
+  if (/晴/.test(t)) return 'sunny';
+  return null;
+}
+function hmElement(st, name) {
+  const els = Array.isArray(st.WeatherElement) ? st.WeatherElement : [];
+  const el = els.find(e => e.ElementName === name);
+  return el && el.ElementValue !== undefined && el.ElementValue !== null ? el.ElementValue : null;
+}
+function hmNearestStation(stations, lat, lon) {
+  let best = null, bd = Infinity;
+  for (const st of stations) {
+    const c = ((st.GeoInfo || {}).Coordinates || []).find(x => x.CoordinateName === 'WGS84' || x.CoordinateFormat === 'decimal degrees');
+    if (!c) continue;
+    const la = parseFloat(c.StationLatitude), lo = parseFloat(c.StationLongitude);
+    if (!isFinite(la) || !isFinite(lo)) continue;
+    const d = (la - lat) ** 2 + ((lo - lon) * 1.1) ** 2;   // 粗略距離就夠用
+    if (d < bd) { bd = d; best = st; }
+  }
+  return best;
+}
+// 每 30 分鐘抓一次；沒有定位權限或網路失敗就維持隨機天氣
+async function hmLoadLive() {
+  if (Date.now() - HM_LIVE.at < 30 * 60e3 || !navigator.geolocation) return;
+  try {
+    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 15 * 60e3 }));
+    const r = await fetch(`${HM_PROXY}/api/v1/rest/datastore/O-A0003-001?format=JSON&_t=${Math.floor(Date.now() / 600e3)}`);
+    if (!r.ok) throw new Error('cwa ' + r.status);
+    const j = await r.json();
+    const st = hmNearestStation((j.records && (j.records.Station || j.records.station)) || [], pos.coords.latitude, pos.coords.longitude);
+    if (!st) return;
+    const t = parseFloat(hmElement(st, 'AirTemperature'));
+    HM_LIVE.temp = isFinite(t) && t > -90 ? t : null;
+    HM_LIVE.wx = hmWxFromCwa(hmElement(st, 'Weather'));
+    HM_LIVE.at = Date.now();
+    try { localStorage.setItem(HM_LIVE_KEY, JSON.stringify(HM_LIVE)); } catch (e) { /* ignore */ }
+    renderHome();
+  } catch (e) { /* 失敗就用隨機天氣 */ }
+}
+// 寒冷時角色會發抖，並說寒冷的台詞
+function hmApplyCold() {
+  const box = $('hmScene');
+  if (box) box.querySelectorAll('.hm-actor').forEach(el => el.classList.toggle('cold', hmCold()));
+}
+
 const HM_WX_KEY = 'personalLedger.weather';
 const hmWxBlock = () => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth() + 1}-${n.getDate()}-${Math.floor(n.getHours() / 6)}`; };
 function hmWx() {
   const block = hmWxBlock();
   try { const o = JSON.parse(localStorage.getItem(HM_WX_KEY) || 'null'); if (o && o.block === block && HM_WX[o.wx]) return o.wx; } catch (e) { /* ignore */ }
+  if (hmLiveFresh() && HM_LIVE.wx) return HM_LIVE.wx;   // 有實際天氣就用實際的
   let h = 0;
   for (const c of 'ledger' + block) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const r = ((h * 2654435761) >>> 0) / 4294967296;
@@ -515,7 +584,10 @@ async function hmDogIdle(a) {
   await hmGo('dog', 'dogbed');
 }
 // 天氣的台詞：目前天氣下這個角色會說的話（沒有就回傳 null）
-const hmWxSay = id => { const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null; };
+const hmWxSay = id => {
+  if (hmCold() && HM_COLD_LINES[id] && Math.random() < 0.5) return pk(HM_COLD_LINES[id]);
+  const L = HM_WX_LINES[hmWx()]; return L && L[id] ? pk(L[id]) : null;
+};
 // 晚上（23:00–06:00）：大家回自己的位子趴著休息，小白在窩裡打呼
 async function hmNightRest(a) {
   if (a.pet) {
@@ -1019,7 +1091,8 @@ function hmWxLayer(wx, TOP, BOT) {
   const W = HM_WX[wx];
   const chip = document.createElement('button');
   chip.type = 'button'; chip.className = 'hm-wx hm-wx-chip';
-  chip.textContent = `${W.icon} ${W.name}`;
+  const tag = hmLiveFresh() && HM_LIVE.temp != null ? ` · ${Math.round(HM_LIVE.temp)}°C${hmCold() ? ' 🥶' : ''}` : '';
+  chip.textContent = `${W.icon} ${W.name}${tag}`;
   chip.title = '點一下換天氣';
   chip.addEventListener('click', e => { e.stopPropagation(); hmWxNext(); });
   box.appendChild(chip);
@@ -1286,6 +1359,7 @@ function renderHome() {
   if (!hmBuilt) hmBuildScene();
   const d = hmData_ = hmData();
   hmDrawBuilding(d);
+  hmApplyCold();
   if (!hmRaf) hmRaf = requestAnimationFrame(hmTick);
   if (hmPending.length) setTimeout(hmPlayPending, 800);
 
@@ -1352,3 +1426,7 @@ function renderHome() {
       scales: { y: { ticks: { callback: v => hmShortMoney(v) } } } },
   });
 }
+
+// 開啟時抓一次實際天氣，之後每 30 分鐘更新
+setTimeout(hmLoadLive, 1200);
+setInterval(hmLoadLive, 30 * 60e3);
