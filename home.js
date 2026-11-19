@@ -685,7 +685,7 @@ function hmDrawBuilding(d) {
   const TOP = T[6], BOT = T[1] + HM_FH;
   const P = [];
   const wx = hmWx(), W = HM_WX[wx];
-  const dusk = !night && now.getHours() >= 16;
+  const dusk = !night && now.getHours() >= 17;
   const sky = night ? W.night : dusk && W.dusk ? W.dusk : W.sky;
   const cc = night ? W.cloudN : W.cloud;      // 雲的顏色
   const cloud = (x, y, k, c = cc, cls = '') => `<g class="hb-cloud ${cls}" fill="${c}" opacity=".95"><ellipse cx="${x}" cy="${y}" rx="${70 * k}" ry="${22 * k}"/><ellipse cx="${x - 40 * k}" cy="${y - 14 * k}" rx="${40 * k}" ry="${26 * k}"/><ellipse cx="${x + 30 * k}" cy="${y - 10 * k}" rx="${34 * k}" ry="${22 * k}"/></g>`;
